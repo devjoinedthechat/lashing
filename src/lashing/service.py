@@ -76,7 +76,7 @@ class EquipmentLine:
     type: str
     units: int
     commodity: str | None = None
-    cargo_weight_kg: float | None = None
+    cargo_weight_kg_per_container: float | None = None
 
 
 def iso_code(value: str) -> str:
@@ -124,8 +124,8 @@ def _equipment_text(lines: list[dict[str, Any]]) -> str:
         text = f"{line['units']} x {line['type']}"
         if line["commodity"]:
             text += f" of {line['commodity']}"
-        if line["cargo_weight_kg"] is not None:
-            text += f" ({line['cargo_weight_kg']:,.0f} kg)"
+        if line["cargo_weight_kg_per_container"] is not None:
+            text += f" ({line['cargo_weight_kg_per_container']:,.0f} kg each)"
         parts.append(text)
     return ", ".join(parts)
 
@@ -304,13 +304,15 @@ class Lashing:
             commodity: dict[str, Any] = {
                 "commodityType": line.commodity or old_commodity.get("commodityType") or "General cargo",
             }
-            weight = line.cargo_weight_kg
-            if weight is None and "cargoGrossWeight" in old_commodity:
-                weight = old_commodity["cargoGrossWeight"]["value"]
-            if weight is not None:
-                if weight <= 0:
-                    raise InvalidRequest("cargo_weight_kg must be positive")
-                commodity["cargoGrossWeight"] = {"value": float(weight), "unit": "KGM"}
+            # DCSA's cargoGrossWeight is the total for the whole line; people think per container.
+            per_container = line.cargo_weight_kg_per_container
+            if per_container is None and previous is not None:
+                per_container = views.weight_per_container(previous)
+            if per_container is not None:
+                if per_container <= 0:
+                    raise InvalidRequest("cargo_weight_kg_per_container must be positive")
+                total = round(float(per_container) * line.units, 3)
+                commodity["cargoGrossWeight"] = {"value": total, "unit": "KGM"}
             out.append(
                 {
                     "ISOEquipmentCode": code,

@@ -58,10 +58,14 @@ class Equipment(BaseModel):
     )
     units: int = Field(ge=1, description="Number of containers of this type")
     commodity: str | None = Field(default=None, description="What the cargo is, e.g. 'Flat-packed furniture'")
-    cargo_weight_kg: float | None = Field(default=None, gt=0, description="Gross cargo weight for this line, in kg")
+    cargo_weight_kg_per_container: float | None = Field(
+        default=None,
+        gt=0,
+        description="Gross cargo weight in each container, in kg (lashing sends DCSA the line total)",
+    )
 
     def line(self) -> EquipmentLine:
-        return EquipmentLine(self.type, self.units, self.commodity, self.cargo_weight_kg)
+        return EquipmentLine(self.type, self.units, self.commodity, self.cargo_weight_kg_per_container)
 
 
 class Approval(BaseModel):

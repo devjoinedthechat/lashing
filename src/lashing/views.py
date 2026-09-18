@@ -65,11 +65,25 @@ def with_carrier_text(view: dict[str, Any], says: list[dict[str, Any]]) -> dict[
     return view
 
 
-def _weight(equipment: dict[str, Any]) -> float | None:
+POUND = 0.45359237
+
+
+def _kilograms(weight: dict[str, Any]) -> float:
+    value = float(weight["value"])
+    return value * POUND if weight.get("unit") == "LBR" else value
+
+
+def total_weight(equipment: dict[str, Any]) -> float | None:
+    """DCSA's cargo gross weight for a whole equipment line, in kg, from either level it may be given at."""
     if "cargoGrossWeight" in equipment:
-        return float(equipment["cargoGrossWeight"]["value"])
-    weights = [c["cargoGrossWeight"]["value"] for c in equipment.get("commodities", []) if "cargoGrossWeight" in c]
-    return float(sum(weights)) if weights else None
+        return _kilograms(equipment["cargoGrossWeight"])
+    weights = [_kilograms(c["cargoGrossWeight"]) for c in equipment.get("commodities", []) if "cargoGrossWeight" in c]
+    return sum(weights) if weights else None
+
+
+def weight_per_container(equipment: dict[str, Any]) -> float | None:
+    total, units = total_weight(equipment), int(equipment.get("units") or 0)
+    return round(total / units, 3) if total is not None and units else None
 
 
 def equipment(lines: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -81,7 +95,8 @@ def equipment(lines: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
                 "type": line.get("ISOEquipmentCode"),
                 "units": line.get("units"),
                 "commodity": ", ".join(commodities) or None,
-                "cargo_weight_kg": _weight(line),
+                "cargo_weight_kg_per_container": weight_per_container(line),
+                "cargo_weight_kg_total": total_weight(line),
             },
         )
     return out

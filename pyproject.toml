@@ -46,6 +46,12 @@ dev = [
     "types-jsonschema>=4.26.0.20260518",
     "types-pyyaml>=6.0.12.20260906",
 ]
+evals = [
+    "anthropic>=1.7.0",
+]
+
+[tool.uv]
+default-groups = ["dev", "evals"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -66,9 +72,9 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "PLR2004", "ARG001", "ARG002", "ARG005", "PT018"]
-"evals/**" = ["S101"]
+"evals/**" = ["S101", "ARG001", "ARG002", "ARG005", "PT018"]  # graders and agents share one signature
 
 [tool.mypy]
 strict = true
 python_version = "3.13"
-files = ["src", "tests", "scripts"]
+files = ["src", "tests", "scripts", "evals"]

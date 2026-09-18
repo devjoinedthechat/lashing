@@ -10,7 +10,7 @@ from .conftest import Factory, Person, ToolFailed, confirmed_at_carrier, connect
 
 pytestmark = pytest.mark.anyio
 
-FURNITURE = {"type": "40HC", "units": 2, "commodity": "Flat-packed furniture", "cargo_weight_kg": 18000}
+FURNITURE = {"type": "40HC", "units": 2, "commodity": "Flat-packed furniture", "cargo_weight_kg_per_container": 18000}
 
 
 async def test_the_tools_an_agent_sees(make_lashing: Factory) -> None:
@@ -50,7 +50,13 @@ async def test_book_a_sailing_under_a_grant(make_lashing: Factory, sim: Simulato
         booking = await tools("get_booking", reference=outcome["booking"]["reference"])
         assert booking["status"] == "CONFIRMED"
         assert booking["equipment"] == [
-            {"type": "45G1", "units": 2, "commodity": "Flat-packed furniture", "cargo_weight_kg": 18000.0},
+            {
+                "type": "45G1",
+                "units": 2,
+                "commodity": "Flat-packed furniture",
+                "cargo_weight_kg_per_container": 18000.0,
+                "cargo_weight_kg_total": 36000.0,
+            },
         ]
         assert set(booking["allowed_actions"]) == {"amend", "cancel_confirmed"}
         assert booking["transport_plan"][0]["vessel"] == choice["legs"][0]["vessel"]
@@ -61,7 +67,7 @@ async def test_book_a_sailing_under_a_grant(make_lashing: Factory, sim: Simulato
 async def test_answer_a_carrier_request_for_missing_cargo_weight(make_lashing: Factory) -> None:
     service = make_lashing(grant("create", "update"))
     async with connect(service) as tools:
-        unweighed = {k: v for k, v in FURNITURE.items() if k != "cargo_weight_kg"}
+        unweighed = {k: v for k, v in FURNITURE.items() if k != "cargo_weight_kg_per_container"}
         plan = await tools("propose_booking", origin="CNSHA", destination="NLRTM", equipment=[unweighed])
         request = (await tools("apply_plan", plan_id=plan["plan_id"]))["booking"]["request_reference"]
 
@@ -140,3 +146,25 @@ async def test_plans_can_be_listed_and_discarded(make_lashing: Factory) -> None:
         assert (await tools("list_plans"))["plans"] == []
         refused = await tools("apply_plan", plan_id=plan["plan_id"])
     assert refused["status"] == "refused"
+
+
+async def test_weights_are_per_container_for_agents_and_line_totals_for_dcsa(
+    make_lashing: Factory,
+    sim: Simulator,
+) -> None:
+    reference = confirmed_at_carrier(sim)  # 1 x 22GP, 3,000 kg in DCSA's line total
+    async with connect(make_lashing(grant("amend"))) as tools:
+        booking = await tools("get_booking", reference=reference)
+        assert booking["equipment"][0]["cargo_weight_kg_per_container"] == 3000.0
+        plan = await tools("propose_change", reference=reference, equipment=[{"type": "22GP", "units": 3}])
+        assert (await tools("apply_plan", plan_id=plan["plan_id"]))["status"] == "applied"
+    line = sim.desk.find(reference).request["requestedEquipments"][0]
+    assert line["units"] == 3
+    assert line["commodities"][0]["cargoGrossWeight"] == {"value": 9000.0, "unit": "KGM"}  # 3,000 kg each
+
+
+def test_pounds_are_converted() -> None:
+    from lashing.views import weight_per_container  # noqa: PLC0415
+
+    line = {"units": 2, "commodities": [{"cargoGrossWeight": {"value": 44092.452, "unit": "LBR"}}]}
+    assert weight_per_container(line) == pytest.approx(10000.0, abs=0.01)
