@@ -1,0 +1,65 @@
+{
+  "bkg-2.0.5": {
+    "commit": "d03a1c7969b4d8807512db4907f4802ee4befdba",
+    "path": "bkg/v2/BKG_v2.0.5.yaml",
+    "repository": "dcsaorg/DCSA-OpenAPI",
+    "version": "2.0.5"
+  },
+  "cs-1.0.4": {
+    "commit": "d03a1c7969b4d8807512db4907f4802ee4befdba",
+    "path": "cs/v1/CS_v1.0.4.yaml",
+    "repository": "dcsaorg/DCSA-OpenAPI",
+    "version": "1.0.4"
+  },
+  "fixture:booking-dg.json": {
+    "commit": "1d0bf380123a849f6b15ad255055f4abcfb96f1a",
+    "path": "booking/src/main/resources/standards/booking/messages/booking-api-2.0.0-dg.json",
+    "repository": "dcsaorg/Conformance-Gateway"
+  },
+  "fixture:booking-dry-cargo.json": {
+    "commit": "1d0bf380123a849f6b15ad255055f4abcfb96f1a",
+    "path": "booking/src/main/resources/standards/booking/messages/booking-api-2.0.0-dry-cargo.json",
+    "repository": "dcsaorg/Conformance-Gateway"
+  },
+  "fixture:booking-non-operating-reefer.json": {
+    "commit": "1d0bf380123a849f6b15ad255055f4abcfb96f1a",
+    "path": "booking/src/main/resources/standards/booking/messages/booking-api-2.0.0-non-operating-reefer.json",
+    "repository": "dcsaorg/Conformance-Gateway"
+  },
+  "fixture:booking-reefer.json": {
+    "commit": "1d0bf380123a849f6b15ad255055f4abcfb96f1a",
+    "path": "booking/src/main/resources/standards/booking/messages/booking-api-2.0.0-reefer.json",
+    "repository": "dcsaorg/Conformance-Gateway"
+  },
+  "fixture:booking-routing-reference.json": {
+    "commit": "1d0bf380123a849f6b15ad255055f4abcfb96f1a",
+    "path": "booking/src/main/resources/standards/booking/messages/booking-api-2.0.0-routing-reference.json",
+    "repository": "dcsaorg/Conformance-Gateway"
+  },
+  "fixture:booking-store-door-at-destination.json": {
+    "commit": "1d0bf380123a849f6b15ad255055f4abcfb96f1a",
+    "path": "booking/src/main/resources/standards/booking/messages/booking-api-2.0.0-store-door-at-destination.json",
+    "repository": "dcsaorg/Conformance-Gateway"
+  },
+  "fixture:booking-store-door-at-origin.json": {
+    "commit": "1d0bf380123a849f6b15ad255055f4abcfb96f1a",
+    "path": "booking/src/main/resources/standards/booking/messages/booking-api-2.0.0-store-door-at-origin.json",
+    "repository": "dcsaorg/Conformance-Gateway"
+  },
+  "fixture:tnt-response-nextpage.json": {
+    "commit": "1d0bf380123a849f6b15ad255055f4abcfb96f1a",
+    "path": "tnt/src/main/resources/standards/tnt/messages/tnt-300-response-nextpage.json",
+    "repository": "dcsaorg/Conformance-Gateway"
+  },
+  "fixture:tnt-response.json": {
+    "commit": "1d0bf380123a849f6b15ad255055f4abcfb96f1a",
+    "path": "tnt/src/main/resources/standards/tnt/messages/tnt-300-response.json",
+    "repository": "dcsaorg/Conformance-Gateway"
+  },
+  "tnt-3.0.0": {
+    "commit": "1d0bf380123a849f6b15ad255055f4abcfb96f1a",
+    "path": "tnt/src/main/resources/standards/tnt/schemas/TNT_v3.0.0.yaml",
+    "repository": "dcsaorg/Conformance-Gateway",
+    "version": "3.0.0"
+  }
+}

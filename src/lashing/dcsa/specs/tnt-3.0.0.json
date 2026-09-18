@@ -1,0 +1,1403 @@
+{
+ "components": {
+  "headers": {
+   "API-Version": {
+    "description": "Every API request and response must contain the `API-Version` header, set to the full version of the implemented DCSA standard.",
+    "schema": {
+     "example": "3.0.0",
+     "type": "string"
+    }
+   },
+   "Next-Page-Cursor": {
+    "description": "A cursor value pointing to the next page of results in a paginated GET response.",
+    "schema": {
+     "example": "ExampleNextPageCursor",
+     "type": "string"
+    }
+   }
+  },
+  "schemas": {
+   "Address": {
+    "description": "An object for storing address-related information.",
+    "properties": {
+     "POBox": {
+      "description": "A numbered box at a post office where a person or business can have mail or parcels delivered.",
+      "example": "123",
+      "type": "string"
+     },
+     "addressLines": {
+      "description": "Unstructured address lines, used as a fallback when structured address fields are unavailable.",
+      "items": {
+       "description": "One line of an unstructured `Address`.",
+       "example": "123 Example Rd",
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "city": {
+      "description": "The name of the city.",
+      "example": "Amsterdam",
+      "type": "string"
+     },
+     "countryCode": {
+      "description": "The 2 characters for the country code using [ISO 3166-1 alpha-2](https://www.iso.org/obp/ui/#iso:pub:PUB500001:en)\n\nWhen the country code is required but not applicable, use the code `ZZ`.\n",
+      "example": "NL",
+      "type": "string"
+     },
+     "floor": {
+      "description": "The floor of the street number.",
+      "example": "N/A",
+      "type": "string"
+     },
+     "postCode": {
+      "description": "The post code of the address.",
+      "example": "1047 HM",
+      "type": "string"
+     },
+     "stateRegion": {
+      "description": "The name of the state/region.",
+      "example": "North Holland",
+      "type": "string"
+     },
+     "street": {
+      "description": "The name of the street.",
+      "example": "Ruijggoordweg",
+      "type": "string"
+     },
+     "streetNumber": {
+      "description": "The number of the street.",
+      "example": "100",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "AirTemperatureMeasurement": {
+    "description": "Air temperature measurement for a reefer container, supporting a logical / primary value and optional physical sensor readings.\n",
+    "properties": {
+     "sensorReadings": {
+      "items": {
+       "$ref": "#/components/schemas/AirTemperatureSensorReading"
+      },
+      "type": "array"
+     },
+     "temperatureValue": {
+      "description": "Logical / primary temperature (e.g., controller value) expressed in `ReeferDetails.temperatureUnit`.",
+      "example": -12.3,
+      "format": "float",
+      "type": "number"
+     }
+    },
+    "type": "object"
+   },
+   "AirTemperatureSensorReading": {
+    "description": "Physical reading from one air temperature sensor of a reefer container",
+    "properties": {
+     "sensorLabel": {
+      "description": "Label of the physical air temperature sensor (a COA property id, a vendor-specific id, or another identifier).\n",
+      "example": "P16",
+      "type": "string"
+     },
+     "temperatureValue": {
+      "description": "Sensor temperature expressed in `ReeferDetails.temperatureUnit`.",
+      "example": -12.3,
+      "format": "float",
+      "type": "number"
+     }
+    },
+    "type": "object"
+   },
+   "ClassifiedDateTime": {
+    "description": "Date and time classified as planned, estimated or actual",
+    "properties": {
+     "classifier": {
+      "description": "Classifier denoting whether a timestamp or event is planned, estimated or actual\n- `ACTUAL` - Actual\n- `ESTIMATED` - Estimated\n- `PLANNED` - Planned",
+      "example": "ESTIMATED",
+      "type": "string"
+     },
+     "value": {
+      "description": "Timestamp representation [in RFC 3339 format](https://swagger.io/docs/specification/v3_0/data-models/data-types/#strings)\n",
+      "example": "2025-01-23T01:23:45Z",
+      "format": "date-time",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "DocumentReference": {
+    "description": "Referenced document",
+    "properties": {
+     "reference": {
+      "description": "Reference identifying the document",
+      "example": "123e4567e89b",
+      "type": "string"
+     },
+     "type": {
+      "description": "Code used to denote the type of a document reference\n- `ADVANCE_MANIFEST_FILING` - Advance Manifest Filing (of any subtype)\n- `ARRIVAL_NOTICE` - Arrival Notice\n- `BOOKING` - Booking\n- `CARGO_SURVEY` - Cargo Survey\n- `CARRIER_BOOKING_REQUEST` - Carrier Booking Request\n- `CERTIFICATE_OF_ANALYSIS` - Certificate of Analysis\n- `CERTIFICATE_OF_ORIGIN` - Certificate of Origin\n- `CONTAINER_RELEASE_ORDER` - Container Release Order\n- `CONTRACT_QUOTATION` - Contract Quotation\n- `CUSTOMS_CLEARANCE` - Customs Clearance\n- `DANGEROUS_GOODS_DECLARATION` - Dangerous Goods Declaration\n- `DELIVERY_INSTRUCTIONS` - Delivery Instructions\n- `DELIVERY_ORDER` - Delivery Order\n- `FUMIGATION_CERTIFICATE` - Fumigation Certificate\n- `HEALTH_CERTIFICATE` - Health Certificate\n- `INSPECTION_CERTIFICATE` - Inspection Certificate\n- `INVOICE` - Invoice\n- `OUT_OF_GAUGE_DECLARATION` - Out of Gauge Declaration\n- `PHYTOSANITARY_CERTIFICATE` - Phytosanitary Certificate\n- `PROOF_OF_DELIVERY` - Proof of Delivery\n- `SHIPPING_INSTRUCTIONS` - Shipping Instruction\n- `TRANSPORT_DOCUMENT` - Transport Document\n- `TRANSPORT_ORDER` - Transport Order\n- `VERIFIED_GROSS_MASS` - Verified Gross Mass\n- `VETERINARY_CERTIFICATE` - Veterinary Certificate",
+      "example": "BOOKING",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "DocumentReferenceReplacement": {
+    "description": "Object used to indicate that one or more documents were replaced by one or more other documents.\n\nUsed in scenarios including booking split / combine or transport document void / reissue.\n",
+    "properties": {
+     "newReferences": {
+      "description": "References of the documents replacing those with the `oldReferences`.\n",
+      "items": {
+       "$ref": "#/components/schemas/DocumentReference"
+      },
+      "type": "array"
+     },
+     "oldReferences": {
+      "description": "References of the documents replaced by those with the `newReferences`.\n",
+      "items": {
+       "$ref": "#/components/schemas/DocumentReference"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "EquipmentDetails": {
+    "description": "Equipment-specific details",
+    "properties": {
+     "ISOEquipmentCode": {
+      "description": "Unique code identifying the equipment size and type used to transport commodities.\nThe code can refer to either the ISO size type (e.g. 22G1) or the ISO type group (e.g. 22GP)\nfollowing the [ISO 6346](https://en.wikipedia.org/wiki/ISO_6346) standard.\n",
+      "example": "22GP",
+      "type": "string"
+     },
+     "emptyIndicator": {
+      "description": "Indicator of whether the equipment is empty or laden.\n- `EMPTY` - Empty\n- `LADEN` - Laden",
+      "example": "LADEN",
+      "type": "string"
+     },
+     "equipmentReference": {
+      "description": "The unique identifier for the equipment, which should follow the BIC ISO Container Identification Number where possible.\n\nAccording to ISO 6346, a container identification code consists of a 4-letter prefix and a 7-digit number\n(composed of a 3-letter owner code, a category identifier, a serial number, and a check-digit).\n\nIf a container does not comply with ISO 6346, it is suggested to follow\n[Recommendation #2: Containers with non-ISO identification](https://smdg.org/documents/smdg-recommendations)\nfrom SMDG.\n",
+      "example": "APZU4812090",
+      "type": "string"
+     },
+     "seals": {
+      "items": {
+       "$ref": "#/components/schemas/Seal"
+      },
+      "type": "array"
+     },
+     "transportPhase": {
+      "description": "The phase of the transport lifecycle in which the event occurs\n- `EXPORT` - Considered active until the vessel departs the Port of Loading\n- `IMPORT` - Considered to start when the vessel arrives at the Port of Discharge; may remain active until the empty container is returned after stripping\n- `TRANSSHIPMENT` - Any intermediate arrival/departure or load/discharge that the carrier chooses to classify as such",
+      "example": "EXPORT",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "Event": {
+    "description": "Track and Trace event",
+    "properties": {
+     "equipmentDetails": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/EquipmentDetails"
+       }
+      ],
+      "description": "Equipment-specific details"
+     },
+     "eventClassification": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/EventClassification"
+       }
+      ],
+      "description": "Type, subtype and classifier of an event"
+     },
+     "eventDateTime": {
+      "description": "The date and time when the real-world event has occurred or will occur.",
+      "example": "2025-01-23T01:23:45Z",
+      "format": "date-time",
+      "type": "string"
+     },
+     "eventID": {
+      "description": "ID of the event, unique among all the events published by a T&T Event Producer.\n\nAn event overrides any other event that has the same `eventID` and an earlier `eventUpdatedDateTime`.\n\nEach event is uniquely identified within each T&T 3.x standard ecosystem of connected implementers\nby a composite key including:\n- the `partyCode`, `codeListProvider` and `codeListName` of all `eventRouting.originatingParties` (if present)\n- the `eventID`\n",
+      "example": "event-HHL71800000-APZU4812090-IoT-DRO-2025-01-23T01:23:45Z",
+      "type": "string"
+     },
+     "eventLocation": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/Location"
+       }
+      ],
+      "description": "The location of the event."
+     },
+     "eventRouting": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/EventRouting"
+       }
+      ],
+      "description": "Routing of an event from the originating party (or parties), optionally via one or more forwarding parties, to the destination party (or parties).\n"
+     },
+     "eventUpdatedDateTime": {
+      "description": "The date and time when the technical event was last updated.",
+      "example": "2025-01-23T01:23:45Z",
+      "format": "date-time",
+      "type": "string"
+     },
+     "iotDetails": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/IotDetails"
+       }
+      ],
+      "description": "IoT-specific details"
+     },
+     "isRetracted": {
+      "description": "Flag indicating that the event is retracted.\n\nThe data in this and all previously transmitted events with the same `eventID` must be discarded or ignored.\n\nIf this flag is `true`, any event data other than the `eventID` is irrelevant (if present).\n\nAn event with the same `eventID`, a later `eventUpdatedDateTime`, and `isRetracted=false` supersedes the retraction and is treated as a new active representation of the event. It must contain a complete, valid event payload; `isRetracted=false` alone does not restore data that was discarded or ignored.\n",
+      "type": "boolean"
+     },
+     "reason": {
+      "description": "Free text information explaining why this event was sent",
+      "type": "string"
+     },
+     "reeferDetails": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/ReeferDetails"
+       }
+      ],
+      "description": "Reefer-specific details"
+     },
+     "shipmentDetails": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/ShipmentDetails"
+       }
+      ],
+      "description": "Shipment-specific details"
+     },
+     "transportDetails": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/TransportDetails"
+       }
+      ],
+      "description": "Transport-specific details"
+     }
+    },
+    "type": "object"
+   },
+   "EventClassification": {
+    "description": "Type, subtype and classifier of an event",
+    "properties": {
+     "equipmentEventType": {
+      "description": "The type of an equipment event\n- `AVAILABLE_FOR_DROP_OFF` - Available for drop-off\n- `AVAILABLE_FOR_PICKUP` - Available for pickup\n- `CROSSED` - Crossed\n- `CUSTOMS_RELEASED` - Released by customs\n- `CUSTOMS_SELECTED_FOR_INSPECTION` - Selected for customs inspection\n- `CUSTOMS_SELECTED_FOR_SCAN` - Selected for customs scan\n- `DISCHARGED` - Discharged\n- `DROPPED_OFF` - Dropped off\n- `GATED_IN` - Gated in\n- `GATED_OUT` - Gated out\n- `INSPECTED` - Inspected\n- `LOADED` - Loaded\n- `PICKED_UP` - Picked up\n- `REMOVED` - Removed\n- `RESEALED` - Resealed\n- `STRIPPED` - Stripped\n- `STUFFED` - Stuffed",
+      "example": "LOADED",
+      "type": "string"
+     },
+     "eventClassifier": {
+      "description": "Classifier denoting whether a timestamp or event is planned, estimated or actual\n- `ACTUAL` - Actual\n- `ESTIMATED` - Estimated\n- `PLANNED` - Planned",
+      "example": "ESTIMATED",
+      "type": "string"
+     },
+     "eventType": {
+      "description": "The type of a Track and Trace event\n- `SHIPMENT` - Shipment event\n- `TRANSPORT` - Transport event\n- `EQUIPMENT` - Equipment event\n- `IOT` - IoT event\n- `REEFER` - Reefer event",
+      "example": "EQUIPMENT",
+      "type": "string"
+     },
+     "iotEventType": {
+      "description": "The type of an IoT event\n- `BREADCRUMB` - Periodic geolocation update\n- `DEVICE_STATUS` - IoT device status update\n- `DOOR_CLOSED` - Door closed\n- `DOOR_OPENED` - Door opened\n- `GEOFENCE_ENTRY` - Geofenced area entry\n- `GEOFENCE_EXIT` - Geofenced area exit\n- `MOTION_START` - Motion start\n- `MOTION_STOP` - Motion stop\n- `PAIRING` - The IoT device is being paired with the equipment\n- `UNPAIRING` - The IoT device is being unpaired from the equipment",
+      "example": "DOOR_OPENED",
+      "type": "string"
+     },
+     "reeferEventType": {
+      "description": "The type of a reefer event\n- `ADJUSTED` - Adjusted\n- `MEASURED` - Measured",
+      "example": "MEASURED",
+      "type": "string"
+     },
+     "shipmentEventType": {
+      "description": "The type of a shipment event\n- `AMENDMENT_CANCELLED` - Amendment Cancelled\n- `AMENDMENT_CONFIRMED` - Amendment Confirmed\n- `AMENDMENT_DECLINED` - Amendment Declined\n- `AMENDMENT_IN_PROGRESS` - Amendment In Progress\n- `AMENDMENT_RECEIVED` - Amendment Received\n- `APPROVED` - Approved\n- `CANCELLATION_CONFIRMED` - Cancellation Confirmed\n- `CANCELLATION_DECLINED` - Cancellation Declined\n- `CANCELLATION_RECEIVED` - Cancellation Received\n- `CANCELLED` - Cancelled\n- `COMPLETED` - Completed\n- `CONFIRMED` - Confirmed\n- `DECLINED` - Declined\n- `DRAFTED` - Drafted\n- `ISSUED` - Issued\n- `ON_HOLD` - On Hold\n- `PENDING_AMENDMENT` - Pending Amendment\n- `PENDING_APPROVAL` - Pending Approval\n- `PENDING_SURRENDER_FOR_AMENDMENT` - Pending Surrender for Amendment\n- `PENDING_SURRENDER_FOR_DELIVERY` - Pending Surrender for Delivery\n- `PENDING_UPDATE` - Pending Update\n- `RECEIVED` - Received\n- `REJECTED` - Rejected\n- `RELEASED` - Released\n- `REQUESTED` - Requested\n- `SUBMITTED` - Submitted\n- `SURRENDERED` - Surrendered\n- `SURRENDERED_FOR_AMENDMENT` - Surrendered for Amendment\n- `SURRENDERED_FOR_DELIVERY` - Surrendered for Delivery\n- `UPDATE_CANCELLED` - Update Cancelled\n- `UPDATE_CONFIRMED` - Update Confirmed\n- `UPDATE_DECLINED` - Update Declined\n- `UPDATE_IN_PROGRESS` - Update In Progress\n- `UPDATE_RECEIVED` - Update Received\n- `VOIDED` - Voided",
+      "example": "APPROVED",
+      "type": "string"
+     },
+     "transportEventType": {
+      "description": "The type of a transport event\n- `APPROACHING` - Close to arriving at a certain location\n- `ARRIVED` - Arrived at a certain location\n- `DEPARTED` - Departed from a certain location",
+      "example": "ARRIVED",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "EventRouting": {
+    "description": "Routing of an event from the originating party (or parties), optionally via one or more forwarding parties, to the destination party (or parties).\n",
+    "properties": {
+     "destinationParties": {
+      "description": "The party (or parties) intended as final recipients of the event.",
+      "items": {
+       "$ref": "#/components/schemas/Party"
+      },
+      "type": "array"
+     },
+     "forwardingParties": {
+      "description": "Ordered list of parties forwarding the event between the originating and destination party or parties.",
+      "items": {
+       "$ref": "#/components/schemas/Party"
+      },
+      "type": "array"
+     },
+     "originatingParties": {
+      "description": "The party (or parties) with which the event (data) originated.",
+      "items": {
+       "$ref": "#/components/schemas/Party"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "Facility": {
+    "description": "Facility identified by a code as defined by a code list provider.\n",
+    "properties": {
+     "facilityCode": {
+      "description": "Code identifying a specific facility, as defined by the `facilityCodeListProvider`.\nThe value should be provided according to the format defined by the relevant code list provider.\n",
+      "example": "AUMELNWQL",
+      "type": "string"
+     },
+     "facilityCodeListProvider": {
+      "description": "Code list provider (each with its relevant code list) defining the `facilityCode`:\n- `SMDG` (using [SMDG Terminal Code List](https://smdg.org/documents/smdg-code-lists/smdg-terminal-code-list/))\n- `BIC` (using [BIC Facility Codes](https://www.bic-code.org/facility-codes/))\n",
+      "example": "SMDG",
+      "type": "string"
+     },
+     "facilityName": {
+      "description": "The name of the facility.",
+      "example": "Building 123",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "FeedbackElement": {
+    "description": "An individual piece of feedback (potentially out of several) providing information on how an API request is processed\n",
+    "properties": {
+     "message": {
+      "description": "Human readable feedback message that can be programmatically relayed to a user of the event publishing organization\n",
+      "example": "The facility SMDG code does not match the location UN/LOCODE",
+      "type": "string"
+     },
+     "propertyPath": {
+      "description": "[JSONPath](https://github.com/json-path/JsonPath) within the request message of the specific property\nabout which the feedback is provided (if applicable)\n",
+      "example": "$.events[2].location",
+      "type": "string"
+     },
+     "severity": {
+      "description": "Code denoting the severity of a `FeedbackElement`\n\n- `ERROR` - Error that fully or partially prevents the correct processing of the request\n- `WARN` - Warning about the request being processed in a potentially unexpected way\n- `INFO` - Informational message about how the request is processed",
+      "example": "ERROR",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "GeoCoordinate": {
+    "description": "An object used to express a location using its geographic coordinates.",
+    "properties": {
+     "latitude": {
+      "description": "Latitude expressed as decimal degrees using the ISO 6709 data interchange numeric format.",
+      "example": "33.629152",
+      "type": "string"
+     },
+     "longitude": {
+      "description": "Longitude expressed as decimal degrees using the ISO 6709 data interchange numeric format.",
+      "example": "-118.587187",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "GeofenceDetails": {
+    "description": "Reference to the external geofence definition used by the detection process that produced this\nevent (e.g. an `IotEventType` of `GEOFENCE_ENTRY` or `GEOFENCE_EXIT`).\n\n`iotDetails.geofenceDetails` is distinct from `eventLocation.facility`:\n- `eventLocation.facility` identifies a physical facility/location.\n- `iotDetails.geofenceDetails` identifies the external geofence definition (an arbitrary,\n  possibly virtual, boundary maintained by a geofence provider) that was used to detect the event.\n\nBoth may be present on the same event, e.g. when a geofence happens to be drawn around a facility.\n\nThe geofence geometry/boundary itself (polygon, radius, etc.) is not part of this API and remains\nmanaged outside of the T&T event payload, by whichever system owns the referenced collection.\n",
+    "properties": {
+     "customerGeofenceCode": {
+      "description": "Business identifier/alias assigned by the receiving customer to this geofence, for use as a\ncorrelation reference alongside the technical geofence reference (`geofenceId`,\n`geofenceCollectionCode` and, if supplied, `geofenceCollectionVersion`).\n\nIt allows the receiving customer to correlate this event with location references already used in\nits own systems and processes, without having to maintain a mapping to the technical geofence\nreference itself.\n\nThis code is optional, is assigned by and scoped to the receiving customer, and is not globally\nunique: it must not be interpreted without the context of the event/integration through which it\nwas received, i.e. without knowing which customer assigned it. It must only be included when that\ncustomer-assigned meaning is preserved and relevant to the receiving customer. When an event is\nforwarded, or otherwise consumed outside of its original customer context, this code must be\nomitted if the assigning customer cannot be determined unambiguously.\n\nIt is not a technical geofence identity and is not part of any DCSA-controlled code list. The\nmapping between the technical geofence reference and this customer alias may be maintained by the\nsystem managing the geofence definitions.\n",
+      "example": "JAX-AREA1",
+      "type": "string"
+     },
+     "geofenceCollectionCode": {
+      "description": "Identifier of the geofence collection, dataset, or namespace in which `geofenceId` is defined and\nwhich was used by the detection process.\n\nThis code alone fully qualifies the collection, so that a single provider can maintain multiple,\nindependently identified collections (e.g. one per yard, per customer, or per purpose), and so\nthat collection ownership does not need to be, and must not be, inferred from `deviceVendor` or\n`deviceModel`.\n",
+      "example": "acme-yard-geofences",
+      "type": "string"
+     },
+     "geofenceCollectionVersion": {
+      "description": "Identifier of the exact revision of the `geofenceCollectionCode` collection that was used to\ndetect or generate this event.\n\nShould be supplied whenever multiple revisions of the same collection may coexist over time (for\nexample, after a geofence boundary is redrawn), so that the exact revision used for detection can\nbe traced.\n",
+      "example": "2026-05-01",
+      "type": "string"
+     },
+     "geofenceId": {
+      "description": "Identifier of the geofence within the collection identified by `geofenceCollectionCode` (and,\nwhen supplied, `geofenceCollectionVersion`).\n\nThis identifier is stable for the logical geofence: it must not change merely because the\ngeofence boundary/polygon itself is edited. It is not globally unique by itself; it is only\nunambiguous when combined with `geofenceCollectionCode` (and `geofenceCollectionVersion`, if\napplicable).\n",
+      "example": "geofence-042",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "GetEventsError": {
+    "description": "Error API response to a `GET Events` request\n",
+    "properties": {
+     "feedbackElements": {
+      "description": "Feedback elements indicating why the request could not be processed.\n\nAt least one feedback element of severity `ERROR` is expected.\nLower severity feedback elements may also be included.\n",
+      "items": {
+       "$ref": "#/components/schemas/FeedbackElement"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "GetEventsResponse": {
+    "description": "API response to a `GET Events` request\n",
+    "properties": {
+     "events": {
+      "description": "The list of events matching the filter specified by the request query parameters\n",
+      "items": {
+       "$ref": "#/components/schemas/Event"
+      },
+      "type": "array"
+     },
+     "feedbackElements": {
+      "description": "Optional list of feedback elements indicating how the request was processed\n",
+      "items": {
+       "$ref": "#/components/schemas/FeedbackElement"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "IotDetails": {
+    "description": "IoT-specific details",
+    "properties": {
+     "detectionSource": {
+      "description": "Where the detection logic that produced this event was executed.\n\nThis is unrelated to the `eventRouting`, the Event Producer, or any originating/forwarding party: those describe who is transmitting the event, whereas `detectionSource` describes where the detection or inference itself took place.\n\n- `DEVICE` - Detected or inferred locally by the physical IoT/telematics device.\n- `PLATFORM` - Detected or inferred by the Event Producer's backend platform using data from devices or systems.\n- `THIRD_PARTY` - Detected or inferred by an external system/service and then provided to the Event Producer.",
+      "example": "DEVICE",
+      "type": "string"
+     },
+     "deviceModel": {
+      "description": "Model of the IoT device",
+      "type": "string"
+     },
+     "deviceVendor": {
+      "description": "Brand name of the IoT device",
+      "type": "string"
+     },
+     "geofenceDetails": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/GeofenceDetails"
+       }
+      ],
+      "description": "Reference to the external geofence definition used by the detection process, e.g. for an\n`IotEventType` of `GEOFENCE_ENTRY` or `GEOFENCE_EXIT`.\n"
+     },
+     "iotEquipmentTechnology": {
+      "description": "The type of IoT technology used by a piece of equipment\n- `SMART_CONTAINER` - The equipment is paired with an active IoT/telematics device. (SMDG code `SMC`)\n- `PASSIVE_TAG` - The equipment carries a passive identification tag (e.g. RFID/NFC). (SMDG code `SMP`)\n- `NONE` - The equipment is not paired with an active IoT device and carries no passive identification tag.\n- `UNKNOWN` - It is not known whether the equipment has IoT technology, or of what type.",
+      "example": "SMART_CONTAINER",
+      "type": "string"
+     },
+     "powerStatus": {
+      "description": "The power status of an IoT device or reefer container\n- `INACTIVE` - The device is inactive (not operational / not commissioned).\n- `POWER_OFF` - The device is connected to a power source but switched off.\n- `POWER_ON` - The device is connected to a power source and powered on.\n- `UNKNOWN` - The power status of the device could not be determined.",
+      "example": "POWER_ON",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "Location": {
+    "description": "Location information",
+    "properties": {
+     "UNLocationCode": {
+      "description": "The UN Location code specifying where the place is located. The pattern used must be\n\n- 2 characters for the country code using [ISO 3166-1 alpha-2](https://www.iso.org/obp/ui/#iso:pub:PUB500001:en)\n- 3 characters to code a location within that country. Letters A-Z and numbers from 2-9 can be used\n\nMore info can be found here: [UN/LOCODE](https://unece.org/trade/cefact/UNLOCODE-Download)\n",
+      "example": "NLAMS",
+      "type": "string"
+     },
+     "address": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/Address"
+       }
+      ],
+      "description": "Location address"
+     },
+     "facility": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/Facility"
+       }
+      ],
+      "description": "Facility identified by a code as defined by a code list provider.\n"
+     },
+     "facilityType": {
+      "description": "A specific type of facility\n- `BORDER` - Border\n- `CUSTOMER_LOCATION` - Customer location\n- `DEPOT` - Depot\n- `CONTAINER_FREIGHT_STATION` - Container freight station\n- `INLAND_TERMINAL` - Inland terminal\n- `OFF_DOCK_STORAGE` - Off-dock storage\n- `PORT_TERMINAL` - Port terminal\n- `RAMP` - Ramp\n- `WAYPOINT` - Waypoint",
+      "example": "DEPOT",
+      "type": "string"
+     },
+     "geoCoordinate": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/GeoCoordinate"
+       }
+      ],
+      "description": "An object used to express a location using its geographic coordinates."
+     },
+     "locationName": {
+      "description": "The name of the location.",
+      "example": "Port of Amsterdam",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "Party": {
+    "description": "Identification of a container shipping party",
+    "properties": {
+     "codeListName": {
+      "description": "Name of the code list in which the `codeListProvider` defines the `partyCode`, including but not limited to:\n- `DID` (Decentralized Identifier) for `codeListProvider` `W3C`\n- `LEI` (Legal Entity Identifier) for `codeListProvider` `GLEIF`\n- `DUNS` (Data Universal Numbering System) for `codeListProvider` `DNB`\n",
+      "example": "DID",
+      "type": "string"
+     },
+     "codeListProvider": {
+      "description": "Code of the provider of a list of codes identifying a party, including but not limited to:\n- `SMDG` (Ship Message Design Group)\n- `ZZZ` (Mutually defined)\n\nor any other code as defined in the\n[DCSA Code List Providers](https://dcsa.atlassian.net/wiki/external/ZjA4M2I3MjA4MDg1NDEwYzlkYTcxNDRhYWQwNzFiYzY).\n",
+      "example": "W3C",
+      "type": "string"
+     },
+     "partyCode": {
+      "description": "Code identifying the party as per the `codeListProvider` and `codeListName`.\n",
+      "example": "MSK",
+      "type": "string"
+     },
+     "partyFunction": {
+      "description": "Code identifying the function of the party, as defined in\n[UN/EDIFACT 16A 3035](https://unece.org/fileadmin/DAM/trade/untdid/d16a/tred/tred3035.htm)\nor a subsequent revision.\n",
+      "example": "CA",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "PostEventsError": {
+    "description": "Error API response to a `POST Events` request.\n\nIf some of the events in the request were successfully processed,\na regular `PostEventsResponse` is expected to be used instead,\nwith `feedbackElements` indicating which events were not processed and why.\n",
+    "properties": {
+     "feedbackElements": {
+      "description": "Feedback elements indicating why request could not be processed.\n\nAt least one feedback element of severity `ERROR` is expected.\nLower severity feedback elements may also be included.\n\nWhen sent in response to a request that contains an array of events,\nthe order of the `feedbackElements` is not related to the list of request events.\nInstead, the relevant request event is indicated by the `propertyPath` of each `FeedbackElement`.\n",
+      "items": {
+       "$ref": "#/components/schemas/FeedbackElement"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "PostEventsRequest": {
+    "description": "API message containing a list of events.",
+    "properties": {
+     "events": {
+      "description": "List of events.",
+      "items": {
+       "$ref": "#/components/schemas/Event"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "PostEventsResponse": {
+    "description": "API response to a `POST Events` request\n",
+    "properties": {
+     "feedbackElements": {
+      "description": "Optional list of feedback elements indicating how the request was processed.\n\nThere can be zero, one or more feedback elements per event in the request.\nThe order of `feedbackElements` is not related to the order of events in the request.\nInstead, the relevant request event is indicated by the `propertyPath` of each `FeedbackElement`.\n",
+      "items": {
+       "$ref": "#/components/schemas/FeedbackElement"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "RailTransport": {
+    "description": "Rail transport information",
+    "properties": {
+     "departureID": {
+      "description": "Unique identifying number or code that is assigned to a specific departure of a rail.\n(Also known as a departure reference number.)\n",
+      "type": "string"
+     },
+     "railCarReference": {
+      "description": "Reference of the rail car on which the equipment is transported.\n",
+      "type": "string"
+     },
+     "railServiceReference": {
+      "description": "Reference of the rail service on which the equipment is transported.\n",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "ReeferAlarm": {
+    "description": "Reefer container alarm",
+    "properties": {
+     "code": {
+      "description": "Code of the alarm, as defined typically by the device manufacturer",
+      "type": "string"
+     },
+     "description": {
+      "description": "Free-text description of the alarm",
+      "type": "string"
+     },
+     "endDateTime": {
+      "description": "The date and time when the alarm became inactive",
+      "example": "2025-01-23T01:23:45Z",
+      "format": "date-time",
+      "type": "string"
+     },
+     "startDateTime": {
+      "description": "The date and time when the alarm became active",
+      "example": "2025-01-23T01:23:45Z",
+      "format": "date-time",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "ReeferDetails": {
+    "description": "Reefer-specific details",
+    "properties": {
+     "alarms": {
+      "description": "The list of alarms that are active, or that were active within a relevant time frame",
+      "items": {
+       "$ref": "#/components/schemas/ReeferAlarm"
+      },
+      "type": "array"
+     },
+     "ambientMeasuredTemperature": {
+      "description": "Ambient measured temperature value expressed in `temperatureUnit`",
+      "example": -15,
+      "format": "float",
+      "type": "number"
+     },
+     "controllerModel": {
+      "description": "Model of the reefer controller",
+      "type": "string"
+     },
+     "internalSetpointTemperature": {
+      "description": "Internal setpoint temperature value expressed in `temperatureUnit`",
+      "example": -15,
+      "format": "float",
+      "type": "number"
+     },
+     "lastDefrostDateTime": {
+      "description": "The date and time when the last defrost was completed",
+      "example": "2025-01-23T01:23:45Z",
+      "format": "date-time",
+      "type": "string"
+     },
+     "measuredParameters": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/ReeferParameters"
+       }
+      ],
+      "description": "Non-temperature measured parameters"
+     },
+     "numberOfActiveAlarms": {
+      "description": "The number of alarms that are currently active",
+      "format": "int32",
+      "type": "integer"
+     },
+     "powerStatus": {
+      "description": "The power status of an IoT device or reefer container\n- `INACTIVE` - The device is inactive (not operational / not commissioned).\n- `POWER_OFF` - The device is connected to a power source but switched off.\n- `POWER_ON` - The device is connected to a power source and powered on.\n- `UNKNOWN` - The power status of the device could not be determined.",
+      "example": "POWER_ON",
+      "type": "string"
+     },
+     "returnAirTemperatureMeasurement": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/AirTemperatureMeasurement"
+       }
+      ],
+      "description": "Return air temperature measurements"
+     },
+     "setpointParameters": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/ReeferParameters"
+       }
+      ],
+      "description": "Non-temperature setpoint parameters"
+     },
+     "supplyAirTemperatureMeasurement": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/AirTemperatureMeasurement"
+       }
+      ],
+      "description": "Supply air temperature measurement"
+     },
+     "temperatureProbeMeasurements": {
+      "description": "Measurements collected from each temperature probe",
+      "items": {
+       "$ref": "#/components/schemas/TemperatureProbeMeasurement"
+      },
+      "type": "array"
+     },
+     "temperatureUnit": {
+      "description": "Unit in which all temperature values are expressed:\n- `CEL` (Celsius)\n- `FAH` (Fahrenheit)\n",
+      "example": "CEL",
+      "type": "string"
+     },
+     "unitManufacturer": {
+      "description": "Manufacturer name of the reefer unit",
+      "type": "string"
+     },
+     "unitModel": {
+      "description": "Model of the reefer unit",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "ReeferParameters": {
+    "description": "Non-temperature parameters of a reefer that can be used both as setpoint and as measured values.\n",
+    "properties": {
+     "airExchangeUnit": {
+      "description": "Unit in which the `airExchangeValue` is expressed:\n- `MQH` (Cubic metre per hour)\n- `FQH` (Cubic foot per hour)\n",
+      "example": "MQH",
+      "type": "string"
+     },
+     "airExchangeValue": {
+      "description": "Air exchange rate expressed in `airExchangeUnit`",
+      "example": 15.4,
+      "format": "float",
+      "type": "number"
+     },
+     "co2Percentage": {
+      "description": "CO<sub>2</sub> percentage",
+      "example": 25,
+      "format": "float",
+      "type": "number"
+     },
+     "humidityPercentage": {
+      "description": "Humidity percentage",
+      "example": 50,
+      "format": "float",
+      "type": "number"
+     },
+     "isBulbMode": {
+      "description": "Flag indicating whether bulb mode is active",
+      "example": true,
+      "type": "boolean"
+     },
+     "isColdTreatment": {
+      "description": "Flag indicating whether cargo cold treatment is active prior to loading at origin, or during transit but prior arrival at POD.\n",
+      "example": true,
+      "type": "boolean"
+     },
+     "isControlledAtmosphere": {
+      "description": "Flag indicating whether controlled atmosphere is active.",
+      "example": true,
+      "type": "boolean"
+     },
+     "isDrainholesOpen": {
+      "description": "Flag indicating whether drainholes are open",
+      "example": true,
+      "type": "boolean"
+     },
+     "isVentilationOpen": {
+      "description": "Flag indicating whether the ventilation orifice is open",
+      "example": true,
+      "type": "boolean"
+     },
+     "o2Percentage": {
+      "description": "O<sub>2</sub> percentage",
+      "example": 25,
+      "format": "float",
+      "type": "number"
+     }
+    },
+    "type": "object"
+   },
+   "Seal": {
+    "description": "Seal-related information associated with the equipment.",
+    "properties": {
+     "number": {
+      "description": "Identifies a seal affixed to the container.",
+      "example": "VET123",
+      "type": "string"
+     },
+     "placement": {
+      "description": "The placement of a seal.\n- `DOOR` - Door\n- `VENT` - Vent",
+      "example": "DOOR",
+      "type": "string"
+     },
+     "source": {
+      "description": "The source of a seal, indicating who has affixed the seal.\n\nBoth `VETERINARY` and `PHYTOSANITARY` map to `AC` (Quarantine agency) in [UN/EDIFACT 16A 9303](https://unece.org/fileadmin/DAM/trade/untdid/d16a/tred/tred9303.htm).\n\n- `CARRIER` - Carrier\n- `CONSOLIDATOR` - Consolidator\n- `CUSTOMER` - Customer\n- `CUSTOMS` - Customs\n- `PHYTOSANITARY` - Phytosanitary\n- `SHIPPER` - Shipper\n- `TERMINAL` - Terminal\n- `VETERINARY` - Veterinary",
+      "example": "CUSTOMER",
+      "type": "string"
+     },
+     "type": {
+      "description": "The type of a seal.\n- `KEYLESS_PADLOCK` - Keyless padlock\n- `BOLT` - Bolt\n- `WIRE` - Wire",
+      "example": "BOLT",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "ServiceCodeOrReference": {
+    "description": "Carrier service code and/or universal service reference",
+    "properties": {
+     "carrierServiceCode": {
+      "description": "Carrier-specific identifier of a service.",
+      "example": "FE1",
+      "type": "string"
+     },
+     "universalServiceReference": {
+      "description": "Globally unique identifier of a liner service, assigned by carriers as specified by DCSA.\n\nDCSA generates and distributes batches of Universal Service References (USRs)\nto member and non-member carriers upon request, for their own use or for their alliances and VSAs.\n\nA carrier can use each of its assigned USRs either in agreement with its partners for a service under a VSA or Alliance,\nor independently for one of its own non-VSA, non-Alliance services.\n\nEvery Universal Service Reference is an 8-character string with the following format:\n * the prefix \"SR\"\n * 5 digits\n * 1 uppercase English letter (A-Z).\n",
+      "example": "SR12345A",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "ShipmentDetails": {
+    "description": "Shipment-specific details",
+    "properties": {
+     "additionalDocumentReferences": {
+      "description": "List of additional document references related to this event",
+      "items": {
+       "$ref": "#/components/schemas/DocumentReference"
+      },
+      "type": "array"
+     },
+     "documentReference": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/DocumentReference"
+       }
+      ],
+      "description": "Primary document reference associated with this event"
+     },
+     "documentReferenceReplacements": {
+      "description": "List of document replacements related to this event",
+      "items": {
+       "$ref": "#/components/schemas/DocumentReferenceReplacement"
+      },
+      "type": "array"
+     },
+     "priceCalculationDate": {
+      "description": "Date taken in consideration for the tariff applicability, that differs depending on the trade.\nIt can vary per carrier.\n",
+      "example": "2025-01-23",
+      "format": "date",
+      "type": "string"
+     },
+     "shipmentLocationType": {
+      "description": "The type of a shipment location\n- `FULL_CONTAINER_DROP_OFF` - Full container drop-off location\n- `INTERMEDIATE_EXPORT_STOP_OFF` - Container intermediate export stop-off location\n- `ONWARD_INLAND_ROUTING` - Onward Inland Routing\n- `ORIGIN_OF_GOODS` - Origin of goods\n- `PLACE_OF_DELIVERY` - Place of Delivery\n- `PLACE_OF_RECEIPT` - Place of Receipt\n- `PORT_OF_DISCHARGE` - Port of Discharge\n- `PORT_OF_LOADING` - Port of Loading\n- `PRE_CARRIAGE_FROM` - Pre-carriage From\n- `PROHIBITED_TRANSSHIPMENT_PORT` - Prohibited transshipment port\n- `REQUESTED_TRANSSHIPMENT_PORT` - Requested transshipment port",
+      "example": "PLACE_OF_DELIVERY",
+      "type": "string"
+     },
+     "shipmentReferenceReplacements": {
+      "description": "List of shipment reference replacements related to this event",
+      "items": {
+       "$ref": "#/components/schemas/ShipmentReferenceReplacement"
+      },
+      "type": "array"
+     },
+     "shipmentReferences": {
+      "description": "List of shipment references related to this event",
+      "items": {
+       "$ref": "#/components/schemas/ShipmentReference"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "ShipmentReference": {
+    "description": "References provided by the shipper or freight forwarder at the time of booking or at the time of providing shipping instructions.\nCarriers share it back when providing track and trace event updates, some are also printed on the B/L.\nCustomers can use these references to track shipments in their internal systems.\n\nIn addition to the References provided by the shipper or freight forwarder,\nthe carrier can provide an extra type called `EQUIPMENT_REFERENCE` which is a reference to an Equipment.\n",
+    "properties": {
+     "reference": {
+      "description": "The actual reference value",
+      "example": "123e4567e89b",
+      "type": "string"
+     },
+     "type": {
+      "description": "Type of a shipment reference\n- `CONSIGNEES_REFERENCE` - Consignee\u2019s Reference\n- `AUTOMATED_EXPORT_SYSTEM` - Automated Export System\n- `BOOKING_REQUEST_ID` - Booking Request ID\n- `BOOKING_PARTY_REFERENCE_NUMBER` - Booking party reference number\n- `CANADIAN_EXPORT_REPORTING_NUMBER` - Canadian Export Reporting System\n- `CUSTOMERS_REFERENCE` - Customer\u2019s Reference\n- `CUSTOMER_SHIPMENT_ID` - Customer shipment ID\n- `DECLARACAO_UNICA_DE_EXPORTACAO` - Declara\u00e7\u00e3o \u00danica de Exporta\u00e7\u00e3o\n- `EMPTY_CONTAINER_RELEASE_REFERENCE` - Empty container release reference\n- `EQUIPMENT_REFERENCE` - Equipment Reference\n- `FREIGHT_FORWARDERS_REFERENCE` - Freight Forwarder\u2019s Reference\n- `PURCHASE_ORDER_REFERENCE` - Purchase Order Reference\n- `REGISTRO_UNICO_DEL_CONTRIBUYENTE` - Registro \u00danico del Contribuyente\n- `SHIPPERS_REFERENCE` - Shipper\u2019s Reference",
+      "example": "FREIGHT_FORWARDERS_REFERENCE",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "ShipmentReferenceReplacement": {
+    "description": "Object used to indicate that one or more shipment elements were replaced by one or more other elements.\n\nUsed in scenarios including the replacement of shipment references or equipments.\n",
+    "properties": {
+     "newReferences": {
+      "description": "References of the shipment elements or equipments replacing those with the `oldReferences`.\n",
+      "items": {
+       "$ref": "#/components/schemas/ShipmentReference"
+      },
+      "type": "array"
+     },
+     "oldReferences": {
+      "description": "References of the shipment elements or equipments replaced by those with the `newReferences`.\n",
+      "items": {
+       "$ref": "#/components/schemas/ShipmentReference"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "TemperatureProbeMeasurement": {
+    "description": "Measurement from one temperature probe of a reefer container",
+    "properties": {
+     "COAProbeUDMKey": {
+      "description": "COA UDM reefer probe key:\n- `P19` (USDA probe 1)\n- `P20` (USDA probe 2)\n- `P21` (USDA probe 3)\n- `P22` (Cargo probe)\n",
+      "example": "P20",
+      "type": "string"
+     },
+     "USDAProbeNumber": {
+      "description": "USDA reefer probe number (1-3)",
+      "example": 2,
+      "format": "int32",
+      "type": "integer"
+     },
+     "measuredTemperatureValue": {
+      "description": "Temperature measured by the probe, expressed in `ReeferDetails.temperatureUnit`",
+      "example": -12.3,
+      "format": "float",
+      "type": "number"
+     },
+     "probeLabel": {
+      "description": "Label identifying the probe other than through a USDA number or COA UDM key",
+      "example": "Pulp probe B",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "TransportCall": {
+    "description": "Transport call information",
+    "properties": {
+     "exportVoyageNumberOrReference": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/VoyageNumberOrReference"
+       }
+      ],
+      "description": "Export voyage number or reference"
+     },
+     "importVoyageNumberOrReference": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/VoyageNumberOrReference"
+       }
+      ],
+      "description": "Import voyage number or reference"
+     },
+     "modeOfTransport": {
+      "description": "The mode of transport as defined by DCSA\n- `VESSEL` - Vessel\n- `RAIL` - Rail\n- `TRUCK` - Truck\n- `BARGE` - Barge\n- `MULTIMODAL` - Multimodal",
+      "example": "VESSEL",
+      "type": "string"
+     },
+     "portVisitReference": {
+      "description": "The unique reference that can be used to link different `transportCallReferences` to the same port visit.\nThe reference is provided by the port to uniquely identify a port call.\n",
+      "type": "string"
+     },
+     "railTransport": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/RailTransport"
+       }
+      ],
+      "description": "Rail transport information"
+     },
+     "serviceCodeOrReference": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/ServiceCodeOrReference"
+       }
+      ],
+      "description": "Carrier service code and/or universal service reference"
+     },
+     "transportCallReference": {
+      "description": "Carrier-defined reference of a `TransportCall`.\n\nIf the mode of transport is Vessel and the facility is a Port or Terminal,\nthis reference should be considered a terminal call reference.\n",
+      "type": "string"
+     },
+     "transportCallSequenceNumber": {
+      "description": "Transport operator's key that uniquely identifies each individual transport call.\nThis key is essential to distinguish between two separate calls at the same location within one voyage.\n",
+      "format": "int32",
+      "type": "integer"
+     },
+     "transportCallSequenceNumberMax": {
+      "description": "The maximum `transportCallSequenceNumber` value to be expected within the set of events emitted as a result of the transport plan change that has triggered this event.\n",
+      "format": "int32",
+      "type": "integer"
+     },
+     "truckTransport": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/TruckTransport"
+       }
+      ],
+      "description": "Truck transport information"
+     },
+     "vesselTransport": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/VesselTransport"
+       }
+      ],
+      "description": "Vessel or barge transport information"
+     }
+    },
+    "type": "object"
+   },
+   "TransportDetails": {
+    "description": "Transport-specific details",
+    "properties": {
+     "delayReasonCodes": {
+      "description": "Codes identifying the reasons for a delay",
+      "items": {
+       "description": "Code identifying the reason for a delay,\n[as defined by SMDG](https://smdg.org/documents/smdg-code-lists/delay-reason-and-port-call-activity/).\n",
+       "example": "STR",
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "transportCall": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/TransportCall"
+       }
+      ],
+      "description": "Transport call information"
+     }
+    },
+    "type": "object"
+   },
+   "TruckTransport": {
+    "description": "Truck transport information",
+    "properties": {
+     "tractorDetails": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/VehicleDetails"
+       }
+      ],
+      "description": "The license plate and VIN of the tractor of the truck used to transport the equipment.\n"
+     },
+     "trailerDetails": {
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/VehicleDetails"
+       }
+      ],
+      "description": "The license plate and VIN of the trailer of the truck on which the equipment is transported,\nif the trailer is separate from the truck trailer and has its own details.\n"
+     }
+    },
+    "type": "object"
+   },
+   "VehicleDetails": {
+    "description": "Details of a vehicle, typically of the tractor or of each trailer of a truck",
+    "properties": {
+     "licensePlate": {
+      "description": "A license plate is a tag that is attached to a vehicle and displays a unique number or code assigned to the vehicle.\nThe format, design, and issuing authority for license plates vary by country, state, and province.\n",
+      "type": "string"
+     },
+     "vehicleIdentificationNumber": {
+      "description": "A chassis number is a unique identifying number or code assigned to the chassis of a vehicle.\nIt may also be referred to as a \"vehicle identification number\" (VIN), \"chassis number\" or \"frame number\".\n",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "VesselTransport": {
+    "description": "Vessel or barge transport information",
+    "properties": {
+     "operatorCarrierCode": {
+      "description": "The carrier who is in charge of the vessel operation based on `operatorCarrierCodeListProvider`\n",
+      "example": "MAEU",
+      "type": "string"
+     },
+     "operatorCarrierCodeListProvider": {
+      "description": "The code list provider used for the `operatorCarrierCode` (SMDG or NMFTA)\n",
+      "example": "SMDG",
+      "type": "string"
+     },
+     "vesselCallSign": {
+      "description": "A unique alphanumeric identity that belongs to the vessel\nand is assigned by the International Telecommunication Union (ITU).\nIt consists of a three-letter alphanumeric prefix that indicates nationality,\nfollowed by one to four characters to identify the individual vessel.\n",
+      "example": "NCVV",
+      "type": "string"
+     },
+     "vesselFlag": {
+      "description": "The national flag of the country under which a vessel is registered,\nindicated by the 2-character code defined in\n[ISO 3166-1 alpha-2](https://www.iso.org/obp/ui/#iso:pub:PUB500001:en).\n",
+      "example": "NL",
+      "type": "string"
+     },
+     "vesselIMONumber": {
+      "description": "The unique reference for a registered vessel, which remains unchanged throughout the entire lifetime of the vessel.\nThe reference is the International Maritime Organisation (IMO) number, also sometimes known as the Lloyd's register code.\n",
+      "example": "9321483",
+      "type": "string"
+     },
+     "vesselMMSINumber": {
+      "description": "Maritime Mobile Service Identities (MMSIs) are nine-digit numbers used by maritime digital selective calling (DSC),\nautomatic identification systems (AIS) and certain other equipment to uniquely identify a ship or a coast radio station.\n",
+      "example": "278111222",
+      "type": "string"
+     },
+     "vesselName": {
+      "description": "Vessel name",
+      "example": "King of the Seas",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "VoyageNumberOrReference": {
+    "description": "Carrier voyage number and/or universal voyage reference",
+    "properties": {
+     "carrierVoyageNumber": {
+      "description": "Carrier-specific identifier of the voyage",
+      "example": "2103S",
+      "type": "string"
+     },
+     "universalVoyageReference": {
+      "description": "Unique identifier of the voyage within a service, assigned by carriers as specified by DCSA.\n\nCarriers assign a Universal Voyage Reference (UVR) to a voyage,\neither individually for non-VSA services or jointly for shared services under a VSA or Alliance.\n\nEvery Universal Voyage Reference is a 5-character string with the following format:\n * the last 2 digits of the year\n * 2 alphanumeric characters for the sequence number of the voyage\n * 1 character for the initial of the direction/haul (`N`orth, `E`ast, `W`est, `S`outh or `R`oundtrip).\n",
+      "example": "2301W",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   }
+  }
+ },
+ "info": {
+  "contact": {
+   "email": "info@dcsa.org",
+   "name": "Digital Container Shipping Association (DCSA)",
+   "url": "https://dcsa.org"
+  },
+  "description": "# DCSA Track and Trace API\n\nThis is the OpenAPI specification of the **DCSA Track and Trace** standard.\n\nThis API allows the transfer of structured track and trace Events from an  Event Producer to an Event Consumer.\n\nEach Event Producer implements the `GET /events` endpoint, which can be called by the authorized Event Consumers to retrieve relevant available Events.\n\nEach Event Consumer implements the `POST /events` endpoint, which can be called by Event Producers call to send relevant Events as they become available.\n\nThe registration of Event Consumers with Event Producers is out of scope.\n\nThe authentication and authorization in both directions between Event Producers and Event Consumers is out of scope.\n\n### Work in progress \u26a0\ufe0f\n\nThe DCSA Track and Trace standard, including this API, is currently being designed and is **not** ready for general adoption yet.\n",
+  "license": {
+   "name": "Apache 2.0",
+   "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+  },
+  "title": "DCSA Track and Trace API",
+  "version": "3.0.0"
+ },
+ "openapi": "3.0.3",
+ "paths": {
+  "/events": {
+   "get": {
+    "description": "Retrieves the list of Events matching the criteria provided as query parameters.\n\nIf no Events match the criteria provided as query parameters, the response should not be an HTTP 404 error message, but a regular HTTP 200 response with an empty array in the message body.\n\nThe ordering of Events in the response message is unspecified.\n\nThe Event Producer is expected to additionally filter the Events based on the authorization and registration profile of the authenticated Event Consumer calling this endpoint. Authorization, registration and any such additional filtering are out of scope in this standard.\n\n---\n\n***Event filtering***\n\n---\n\n**Required base filter combinations**\n\nEvery Event Producer must support the following combinations of query parameter filters:\n* `carrierBookingReference`\n* `carrierBookingReference`, `equipmentReference`\n* `transportDocumentReference`\n* `transportDocumentReference`, `equipmentReference`\n* `equipmentReference`\n\n**Optional additional filters**\n\nEvery Event Producer must support combining any of the base filter combinations above with a list of `eventTypes`. The `eventTypes` query parameter is optional. By default, events of all `eventTypes` are expected to be returned if available and supported.\n\nEvery Event Producer must support combining any of the base filter combinations above with the following optional date filtering query parameters:\n* `eventUpdatedDateTimeMin`\n* `eventUpdatedDateTimeMax`\n* `eventUpdatedDateTimeMin`, `eventUpdatedDateTimeMax`\n\nThe query parameters `eventUpdatedDateTimeMin` and `eventUpdatedDateTimeMax` are optional. However, if provided in a request, Event Producers must support and correctly apply them in combination with any of the base filter combinations listed above.\n\n**Default time window behavior**\n\nEach Event Producer may optionally decide to implement a default relative date range and only return Events having an `eventUpdatedDateTime` within that range when no date filters are provided in the request. This behavior is implementation-specific and should be documented by the Event Producer.\n\n**Unsupported query parameters**\n\nWhen receiving requests containing an unsupported query parameter, an Event Producer can choose to either ignore the query parameter (if possible) or to reject the request with an HTTP 400.\n\n---\n\n***Pagination***\n\n---\n\nResponse pagination uses a mechanism based on the `limit` and `cursor` query parameters and on the `Next-Page-Cursor` response header.\n\n**Optional support**\n\nEach Event Producer can decide whether to support the pagination of results, or to only allow limiting the response size using filtering query parameters.\n\nIf the Event Producer does not provide pagination support, it can choose to either reject with an HTTP 400 any request containing the `limit` or `cursor` query parameters, or to handle the request normally while silently ignoring the pagination query parameters.\n\n**Enabling pagination**\n\nThe Event Consumer can use the `limit` query parameter to specify a maximum number of Events that should be included in the response.\n\nThe Event Producer can separately choose (and document on their copy of the published API specification) its own limit to the number of Events that it would include in responses.\n\nThe effective page size limit is the minimum between the `limit` query parameter (if specified) and the Event Producer's own maximum page size configuration setting.\n\n**Retrieving results pages**\n\nIf based on filtering the response would include more Events than this effective page size limit, the Event Producer only adds Events to the response up to this effective page size limit, setting in the response the `Next-Page-Cursor` to a value that it can accept as the value of the `cursor` query parameter in a subsequent request and use it to return the next page of results.\n\nThe Event Consumer reads the value of the `Next-Page-Cursor` response header and sets it as the value of the `cursor` query parameter in its next request.\n\nThe Event Consumer **must** keep alongside the `cursor` all the original query parameters from the request that retrieved the first page, in order to allow either a stateful or a stateless implementation of the pagination mechanism by the Event Producer.\n\nThe effect of changing any of the original query parameters in subsequent pagination requests is unspecified and may result in the rejection of the request by the Event Producer with an HTTP 4xx response.\n\nThe effect of attempting to use a cursor more than once (for example to \"go back\" to previous pages) is unspecified and may result in the rejection of the request by the Event Producer with an HTTP 4xx response. (This is by design a backend-to-backend API, not intended for use directly from frontend applications and therefore not directly supporting a typical full set of web frontend pagination actions.)\n\nWhen responding with the last page of results, the Event Producer no longer includes a `Next-Page-Cursor` response header. The last page of results may be empty, for example in the case of a stateless pagination implementation by the Event Producer.\n",
+    "operationId": "get-events",
+    "parameters": [
+     {
+      "description": "Reference of the booking for which to return the associated events",
+      "example": "ABC709951",
+      "in": "query",
+      "name": "carrierBookingReference",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "Reference of the transport document for which to return the associated events",
+      "example": "HHL71800000",
+      "in": "query",
+      "name": "transportDocumentReference",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "Reference of the equipment for which to return the associated events",
+      "example": "APZU4812090",
+      "in": "query",
+      "name": "equipmentReference",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "Retrieve only events whose `eventType` is in this list",
+      "example": "EQUIPMENT,IOT,REEFER",
+      "explode": false,
+      "in": "query",
+      "name": "eventTypes",
+      "schema": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     },
+     {
+      "description": "Retrieve events with an `eventUpdatedDateTime` at or after this timestamp",
+      "example": "2025-01-23T01:23:45Z",
+      "in": "query",
+      "name": "eventUpdatedDateTimeMin",
+      "schema": {
+       "format": "date-time",
+       "type": "string"
+      }
+     },
+     {
+      "description": "Retrieve events with an `eventUpdatedDateTime` at or before this timestamp",
+      "example": "2025-01-23T01:23:45Z",
+      "in": "query",
+      "name": "eventUpdatedDateTimeMax",
+      "schema": {
+       "format": "date-time",
+       "type": "string"
+      }
+     },
+     {
+      "description": "Maximum number of events to include in each page of the response.",
+      "example": 10,
+      "in": "query",
+      "name": "limit",
+      "schema": {
+       "format": "int32",
+       "type": "integer"
+      }
+     },
+     {
+      "description": "Set to the value of the `Next-Page-Cursor` header of the previous response to retrieve the next page.",
+      "example": "ExampleNextPageCursor",
+      "in": "query",
+      "name": "cursor",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "Every API request and response must contain the `API-Version` header, set to the full version of the implemented DCSA standard.",
+      "example": "3.0.0",
+      "in": "header",
+      "name": "API-Version",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/GetEventsResponse"
+        }
+       }
+      },
+      "description": "List of events matching the query parameters",
+      "headers": {
+       "API-Version": {
+        "$ref": "#/components/headers/API-Version"
+       },
+       "Next-Page-Cursor": {
+        "$ref": "#/components/headers/Next-Page-Cursor"
+       }
+      }
+     },
+     "default": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/GetEventsError"
+        }
+       }
+      },
+      "description": "Error response",
+      "headers": {
+       "API-Version": {
+        "$ref": "#/components/headers/API-Version"
+       }
+      }
+     }
+    },
+    "summary": "Retrieves a list of events",
+    "tags": [
+     "Event Producer Endpoints"
+    ]
+   },
+   "post": {
+    "description": "Used by an Event Producer to send T&T Events to a registered Event Consumer.\n\nThe subscription mechanism and the management of Event Consumer profiles, including any filtering or page limits similar with the GET endpoint, are out of scope in this standard.\n",
+    "operationId": "post-events",
+    "parameters": [
+     {
+      "description": "Every API request and response must contain the `API-Version` header, set to the full version of the implemented DCSA standard.",
+      "example": "3.0.0",
+      "in": "header",
+      "name": "API-Version",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PostEventsRequest"
+       }
+      }
+     },
+     "description": "List of events",
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PostEventsResponse"
+        }
+       }
+      },
+      "description": "Events response",
+      "headers": {
+       "API-Version": {
+        "$ref": "#/components/headers/API-Version"
+       }
+      }
+     },
+     "default": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PostEventsError"
+        }
+       }
+      },
+      "description": "Error response",
+      "headers": {
+       "API-Version": {
+        "$ref": "#/components/headers/API-Version"
+       }
+      }
+     }
+    },
+    "summary": "Sends a list of events",
+    "tags": [
+     "Event Consumer Endpoints"
+    ]
+   }
+  }
+ },
+ "tags": [
+  {
+   "description": "Endpoints implemented by the Event Producers",
+   "name": "Event Producer Endpoints"
+  },
+  {
+   "description": "Endpoints implemented by the Event Consumers",
+   "name": "Event Consumer Endpoints"
+  }
+ ]
+}

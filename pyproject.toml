@@ -1,0 +1,70 @@
+[project]
+name = "lashing"
+version = "0.1.0"
+description = "An MCP server that lets AI agents book and track container shipments through the DCSA standards, with every change validated, authorized and logged."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "devjoinedthechat", email = "235875317+devjoinedthechat@users.noreply.github.com" }]
+requires-python = ">=3.13"
+keywords = ["mcp", "dcsa", "shipping", "logistics", "ai-agents", "booking", "track-and-trace"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Office/Business",
+    "Typing :: Typed",
+]
+dependencies = [
+    "jsonschema>=4.26.0",
+    "mcp>=2.2.0,<3",
+]
+
+[project.scripts]
+lashing = "lashing.cli:main"
+
+[project.urls]
+Repository = "https://github.com/devjoinedthechat/lashing"
+
+[build-system]
+requires = ["uv_build>=0.12.16,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "anyio>=4.15.1",
+    "hypothesis>=6.168.0",
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "pyyaml>=6.0.3",
+    "ruff>=0.16.8",
+    "types-jsonschema>=4.26.0.20260518",
+    "types-pyyaml>=6.0.12.20260906",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "PL", "TRY", "C4", "PT", "RET", "ARG"]
+ignore = [
+    "PLR0913",  # tool functions mirror the arguments an agent passes
+    "PLR2004",  # magic values read fine in domain rules (e.g. 7-digit IMO numbers)
+    "TRY003",   # messages go to agents and operators; long ones are the point
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "PLR2004", "ARG001"]
+"evals/**" = ["S101"]
+
+[tool.mypy]
+strict = true
+python_version = "3.13"
+files = ["src", "tests", "scripts"]

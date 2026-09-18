@@ -1,0 +1,226 @@
+{
+  "events": [
+    {
+      "eventRouting": {
+        "originatingParties": [
+          {
+            "partyCode": "EXCO",
+            "codeListProvider": "SMDG",
+            "codeListName": "LCL",
+            "partyFunction": "CA"
+          }
+        ]
+      },
+      "eventID": "evt-resp-ship-002",
+      "eventDateTime": "2025-02-23T01:00:00Z",
+      "eventUpdatedDateTime": "2025-02-23T01:23:45Z",
+      "eventClassification": {
+        "eventType": "SHIPMENT",
+        "eventClassifier": "ACTUAL",
+        "shipmentEventType": "APPROVED"
+      },
+      "shipmentDetails": {
+        "documentReference": {
+          "type": "BOOKING",
+          "reference": "CARRIER_BOOKING_REFERENCE_PLACEHOLDER"
+        },
+        "additionalDocumentReferences": [
+          {
+            "type": "TRANSPORT_DOCUMENT",
+            "reference": "TRANSPORT_DOCUMENT_REFERENCE_PLACEHOLDER"
+          }
+        ]
+      }
+    },
+    {
+      "eventRouting": {
+        "originatingParties": [
+          {
+            "partyCode": "EXCO",
+            "codeListProvider": "SMDG",
+            "codeListName": "LCL",
+            "partyFunction": "CA"
+          }
+        ]
+      },
+      "eventID": "evt-resp-trans-002",
+      "eventDateTime": "2025-02-12T08:00:00Z",
+      "eventUpdatedDateTime": "2025-02-10T01:23:45Z",
+      "eventLocation": {
+        "locationName": "Example Port Beta",
+        "UNLocationCode": "ESBCN",
+        "facilityType": "PORT_TERMINAL"
+      },
+      "eventClassification": {
+        "eventType": "TRANSPORT",
+        "eventClassifier": "ESTIMATED",
+        "transportEventType": "ARRIVED"
+      },
+      "shipmentDetails": {
+        "documentReference": {
+          "type": "BOOKING",
+          "reference": "CARRIER_BOOKING_REFERENCE_PLACEHOLDER"
+        },
+        "additionalDocumentReferences": [
+          {
+            "type": "TRANSPORT_DOCUMENT",
+            "reference": "TRANSPORT_DOCUMENT_REFERENCE_PLACEHOLDER"
+          }
+        ]
+      },
+      "transportDetails": {
+        "transportCall": {
+          "transportCallReference": "tc-11223-ghi",
+          "transportCallSequenceNumber": 5,
+          "modeOfTransport": "VESSEL",
+          "serviceCodeOrReference": {
+            "carrierServiceCode": "SVC003"
+          },
+          "exportVoyageNumberOrReference": {
+            "carrierVoyageNumber": "V003E"
+          },
+          "importVoyageNumberOrReference": {
+            "carrierVoyageNumber": "V003N"
+          },
+          "vesselTransport": {
+            "vesselIMONumber": "2468135",
+            "vesselName": "Example Vessel Gamma",
+            "vesselFlag": "ES",
+            "vesselCallSign": "MNOP"
+          }
+        }
+      }
+    },
+    {
+      "eventRouting": {
+        "originatingParties": [
+          {
+            "partyCode": "EXCO",
+            "codeListProvider": "SMDG",
+            "codeListName": "LCL",
+            "partyFunction": "CA"
+          }
+        ]
+      },
+      "eventID": "evt-resp-equip-002",
+      "eventDateTime": "2025-02-15T00:45:00Z",
+      "eventUpdatedDateTime": "2025-02-15T01:23:45Z",
+      "eventLocation": {
+        "locationName": "Example Yard Beta",
+        "UNLocationCode": "ITGOA",
+        "facilityType": "OFF_DOCK_STORAGE"
+      },
+      "eventClassification": {
+        "eventType": "EQUIPMENT",
+        "eventClassifier": "ACTUAL",
+        "equipmentEventType": "DISCHARGED"
+      },
+      "shipmentDetails": {
+        "documentReference": {
+          "type": "BOOKING",
+          "reference": "CARRIER_BOOKING_REFERENCE_PLACEHOLDER"
+        },
+        "additionalDocumentReferences": [
+          {
+            "type": "TRANSPORT_DOCUMENT",
+            "reference": "TRANSPORT_DOCUMENT_REFERENCE_PLACEHOLDER"
+          }
+        ]
+      },
+      "equipmentDetails": {
+        "equipmentReference": "EQUIPMENT_REFERENCE_PLACEHOLDER",
+        "ISOEquipmentCode": "22GP",
+        "emptyIndicator": "LADEN",
+        "transportPhase": "TRANSSHIPMENT"
+      }
+    },
+    {
+      "eventRouting": {
+        "originatingParties": [
+          {
+            "partyCode": "EXCO",
+            "codeListProvider": "SMDG",
+            "codeListName": "LCL",
+            "partyFunction": "CA"
+          }
+        ]
+      },
+      "eventID": "evt-resp-iot-002",
+      "eventDateTime": "2025-02-18T01:00:00Z",
+      "eventUpdatedDateTime": "2025-02-18T01:23:45Z",
+      "eventLocation": {
+        "locationName": "Sensor Hub Beta",
+        "geoCoordinate": {
+          "latitude": "48.8566",
+          "longitude": "2.3522"
+        }
+      },
+      "eventClassification": {
+        "eventType": "IOT",
+        "eventClassifier": "ACTUAL",
+        "iotEventType": "BREADCRUMB"
+      },
+      "equipmentDetails": {
+        "equipmentReference": "EQUIPMENT_REFERENCE_PLACEHOLDER",
+        "ISOEquipmentCode": "22GP"
+      },
+      "iotDetails": {
+        "iotEquipmentTechnology": "SMART_CONTAINER"
+      }
+    },
+    {
+      "eventRouting": {
+        "originatingParties": [
+          {
+            "partyCode": "EXCO",
+            "codeListProvider": "SMDG",
+            "codeListName": "LCL",
+            "partyFunction": "CA"
+          }
+        ]
+      },
+      "eventID": "evt-resp-reefer-002",
+      "eventDateTime": "2025-02-20T01:00:00Z",
+      "eventUpdatedDateTime": "2025-02-20T01:23:45Z",
+      "eventLocation": {
+        "locationName": "Refrigeration Hub",
+        "UNLocationCode": "NLAMS",
+        "facilityType": "DEPOT"
+      },
+      "eventClassification": {
+        "eventType": "REEFER",
+        "eventClassifier": "ACTUAL",
+        "reeferEventType": "ADJUSTED"
+      },
+      "equipmentDetails": {
+        "equipmentReference": "EQUIPMENT_REFERENCE_PLACEHOLDER",
+        "ISOEquipmentCode": "45R1"
+      },
+      "reeferDetails": {
+        "temperatureUnit": "CEL",
+        "internalSetpointTemperature": -15.0,
+        "ambientMeasuredTemperature": 20.0,
+        "temperatureProbeMeasurements": [
+          {
+            "USDAProbeNumber": 1,
+            "measuredTemperatureValue": -14.9
+          },
+          {
+            "USDAProbeNumber": 2,
+            "measuredTemperatureValue": -15.2
+          }
+        ],
+        "setpointParameters": {
+          "humidityPercentage": 70.0,
+          "o2Percentage": 21.0,
+          "co2Percentage": 0.4
+        },
+        "measuredParameters": {
+          "humidityPercentage": 69.5,
+          "o2Percentage": 21.1,
+          "co2Percentage": 0.42
+        }
+      }
+    }
+  ]
+}

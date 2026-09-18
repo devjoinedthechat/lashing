@@ -1,0 +1,11 @@
+lashing
+Copyright 2026 devjoinedthechat
+
+This product includes the DCSA OpenAPI specifications for Booking 2.0.5 and Commercial
+Schedules 1.0.4 (https://github.com/dcsaorg/DCSA-OpenAPI) and the Track & Trace 3.0.0
+specification and sample messages from the DCSA Conformance Framework
+(https://github.com/dcsaorg/Conformance-Gateway), both licensed under the Apache License 2.0.
+The exact commits are listed in src/lashing/dcsa/specs/SOURCES.json.
+
+lashing is an independent project. It is not produced, endorsed or certified by the Digital
+Container Shipping Association (DCSA) or by any carrier.
