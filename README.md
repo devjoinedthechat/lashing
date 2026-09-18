@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
-    <img src="assets/logo-light.svg" alt="" width="120" height="100">
+    <img src="assets/logo-light.svg" alt="" width="112" height="112">
   </picture>
 </p>
 
@@ -16,7 +16,7 @@
 <p align="center">
   <a href="https://github.com/devjoinedthechat/lashing/actions/workflows/ci.yml"><img src="https://github.com/devjoinedthechat/lashing/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.13%20%7C%203.14-blue" alt="Python 3.13 | 3.14">
-  <img src="https://img.shields.io/badge/tests-181-brightgreen" alt="181 tests">
+  <img src="https://img.shields.io/badge/tests-225-brightgreen" alt="225 tests">
   <img src="https://img.shields.io/badge/DCSA-Booking%202.0.5%20%C2%B7%20T%26T%203.0.0%20%C2%B7%20Schedules%201.0.4-0e4a6e" alt="DCSA Booking 2.0.5, Track & Trace 3.0.0, Commercial Schedules 1.0.4">
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0">
   <img src="https://img.shields.io/badge/status-pre--alpha-orange" alt="Status: pre-alpha">
@@ -162,9 +162,15 @@ hostile. [tests/test_safety.py](tests/test_safety.py) attacks each defence direc
 |---|---|
 | Carrier feedback tells the agent to cancel, and the agent obeys it word for word | Nothing is sent. Authority comes only from grants and people |
 | The same plan applied twice, or by two server processes racing on one ledger | Sent once |
-| A plan applied after the booking changed at the carrier | Refused as stale |
+| A plan applied after the booking, or the amendment it was built on, changed at the carrier | Refused as stale |
+| The connection drops after a write was sent, the carrier answers 5xx, or the call is cancelled | The plan is closed as `unknown` and never resent. The agent is told to check first, and an operator records the outcome with `lashing resolve` |
+| The connection fails before anything was sent | The plan stays open and can simply be applied again |
+| A grant used over and over by a looping or manipulated agent | `max_per_day` caps it. The count is taken under the ledger's lock |
+| A typo in the config (`lane` for `lanes`, a string for a list, `"false"` for false) | An error at startup, never a wider grant |
+| Carrier text with invisible Unicode (tag characters, bidi overrides, zero-width joiners) | Stripped everywhere the agent reads carrier text, including error messages |
+| An approval prompt that hides what is sent | The prompt lists every field that will be sent, built by lashing; the agent's own words appear only in quotation marks |
 | A made-up plan id, or a non-conformant body forged straight into the ledger | Nothing leaves. The client validates every body before any request |
-| A reference like `X/../admin` or `X?amendedContent=true` | Percent-encoded. It cannot reshape the URL |
+| A reference like `X/../admin`, `..` or `X?amendedContent=true` | Refused or percent-encoded. It cannot reshape the URL |
 | An edited, deleted or reordered ledger entry | `lashing ledger verify` reports which entry |
 
 **Not defended, by design:**
@@ -262,13 +268,18 @@ without asking:
 [[grant]]
 id = "rebook-to-another-sailing"
 actions = ["amend"]
-fields = ["routingReference", "expectedDepartureDate"]
+# A move to another sailing sets routingReference and drops the old vessel and voyage fields.
+fields = [
+  "routingReference", "expectedDepartureDate", "vessel", "carrierExportVoyageNumber",
+  "universalExportVoyageReference", "carrierServiceCode", "carrierServiceName", "universalServiceReference",
+]
 
 [[grant]]
 id = "small-asia-europe-bookings"
 actions = ["create"]
 lanes = ["CN*-NL*", "CN*-DE*", "CN*-BE*"]
 max_units = 4
+max_per_day = 10
 expires = 2026-12-31
 ```
 
@@ -279,9 +290,10 @@ the config, the ledger or any tool result.
 |---|---|
 | `lashing demo` | MCP server over stdio with the built-in simulated carrier |
 | `lashing serve --config lashing.toml` | MCP server over stdio against a configured carrier |
-| `lashing sim` | The simulated carrier over HTTP |
-| `lashing plans` | Plans waiting to be applied |
+| `lashing sim [--manual]` | The simulated carrier over HTTP; `--manual` makes it decide only when told |
+| `lashing plans` | Plans waiting to be applied, and plans in doubt |
 | `lashing approve <plan>` | Approve a plan as an operator (asks you to type the plan id) |
+| `lashing resolve <plan> applied\|failed` | Record what the carrier shows happened to a plan in doubt |
 | `lashing ledger verify` \| `head` \| `show` | Check, anchor or read the ledger |
 
 ## Standards
@@ -297,29 +309,11 @@ The specs are vendored at the commits listed in
 `uv run python scripts/vendor_specs.py`. Track & Trace comes from the Conformance Gateway because
 DCSA-OpenAPI's main branch still carries the 3.0.0 beta.
 
-## Status
-
-Last updated 2026-09-18.
-
-| Area | State |
-|---|---|
-| DCSA specs vendored and enforced on every request and response | ✅ |
-| Booking lifecycle rules: update vs amendment, three cancellation forms, which reference each call uses | ✅ |
-| Simulated carrier: bookings, schedules, tracking, delays, scenario controls | ✅ |
-| DCSA HTTP client: request and response validation, error mapping, reference encoding | ✅ |
-| Plans, grants, operator and client approvals, at-most-once apply, stale-plan refusal, hash-chained ledger | ✅ |
-| MCP server (10 tools) and CLI | ✅ |
-| Attack suite and eval harness with proven graders | ✅ |
-| Eval results for current models | ⬜ |
-| Run against the DCSA Conformance Framework | ⬜ |
-| Track & Trace 2.2 (widely deployed), eBL 3.0, booking notifications | ⬜ |
-| Published to PyPI | ⬜ |
-
 ## Development
 
 ```sh
 uv sync
-uv run pytest                       # 181 tests, a few seconds
+uv run pytest                       # 225 tests, about ten seconds
 uv run ruff check . && uv run mypy  # strict
 ```
 

@@ -104,7 +104,9 @@ async def test_move_a_delayed_booking_to_another_sailing_with_a_persons_approval
 
     assert outcome["status"] == "applied"
     assert outcome["authorized_by"] == "approved:client"
-    assert person.asked and "Amend confirmed booking" in person.asked[0]
+    assert person.asked
+    assert "Action: amend confirmed booking" in person.asked[0]
+    assert f'Change: set routingReference to "{faster["routing_reference"]}"' in person.asked[0]
     booking = sim.desk.find(reference)
     assert booking.amendment is not None and booking.amendment.value == "AMENDMENT_CONFIRMED"
     assert booking.route is not None and booking.route.reference == faster["routing_reference"]

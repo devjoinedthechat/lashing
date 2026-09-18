@@ -125,12 +125,29 @@ async def test_an_amendment_coexists_with_the_confirmed_booking_until_the_carrie
     assert settled["confirmedEquipments"] == [{"ISOEquipmentCode": "22GP", "units": 3}]
 
 
-async def test_an_amendment_must_use_the_booking_reference(http: httpx.AsyncClient) -> None:
+async def test_an_amendment_may_use_either_reference(http: httpx.AsyncClient) -> None:
+    """Booking 2.0's PUT path "can contain one of carrierBookingRequestReference or carrierBookingReference"."""
     reference = await book(http, shanghai_rotterdam())
-    await fetch(http, reference)
+    await fetch(http, reference)  # confirmed now
     response = await http.put(f"/bkg/v2/bookings/{reference}", json=shanghai_rotterdam())
-    assert response.status_code == 409
-    conforms(Spec.BOOKING, "ErrorResponse", response.json())
+    assert response.status_code == 202
+    assert (await fetch(http, reference))["amendedBookingStatus"] in ("AMENDMENT_RECEIVED", "AMENDMENT_CONFIRMED")
+
+
+async def test_a_confirmed_booking_references_each_commodity(http: httpx.AsyncClient) -> None:
+    """Found by DCSA's Conformance Framework: CONFIRMED requires commoditySubReference on every commodity."""
+    booking = await fetch(http, await book(http, shanghai_rotterdam()))
+    commodities = [c for e in booking["requestedEquipments"] for c in e["commodities"]]
+    assert [c["commoditySubReference"] for c in commodities] == [f"{booking['carrierBookingReference']}-1-1"]
+
+
+async def test_manual_mode_decides_one_booking_when_told(http: httpx.AsyncClient) -> None:
+    assert (await http.post("/_sim/mode", json={"auto": False})).status_code == 200
+    first, second = await book(http, shanghai_rotterdam()), await book(http, shanghai_rotterdam())
+    assert (await fetch(http, first))["bookingStatus"] == "RECEIVED"
+    assert (await http.post("/_sim/process", json={"reference": first})).status_code == 200
+    assert (await fetch(http, first))["bookingStatus"] == "CONFIRMED"
+    assert (await fetch(http, second))["bookingStatus"] == "RECEIVED"
 
 
 @pytest.mark.parametrize(

@@ -22,7 +22,7 @@ from typing import Any
 import anyio
 
 from .agents import BAD, GOOD, ClaudeAgent, Scripted
-from .harness import Agent, Trial, run_trial
+from .harness import Agent, Task, Trial, run_trial
 from .tasks import BY_ID, TASKS
 
 
@@ -75,28 +75,47 @@ async def main_async(args: argparse.Namespace) -> int:
     out.mkdir(parents=True, exist_ok=True)
     trials: list[Trial] = []
     spent = 0.0
+    skipped = 0
+    limiter = anyio.CapacityLimiter(args.jobs)
+
     with (out / "trials.jsonl").open("w", encoding="utf-8") as log:
-        for task in tasks:
-            for n in range(1, args.trials + 1):
-                if spent >= args.max_usd:
-                    print(f"stopping: ${spent:.2f} spent, cap is ${args.max_usd:.2f}", file=sys.stderr)
-                    break
+
+        async def one(task: Task, n: int) -> None:
+            nonlocal spent, skipped
+            async with limiter:
+                if spent >= args.max_usd:  # checked as each trial starts; up to --jobs trials may overrun
+                    skipped += 1
+                    return
                 try:
                     trial = await run_trial(task, agent, n)
                 except Exception as error:  # one broken trial must not end the run
                     print(f"{task.id} #{n}: error {type(error).__name__}: {error}", file=sys.stderr)
-                    continue
-                trials.append(trial)
-                spent += trial.result.cost_usd
-                log.write(json.dumps(trial.record(), default=str) + "\n")
-                mark = "pass" if trial.passed else "FAIL"
-                print(
-                    f"{task.id} #{n}: {mark}  (${trial.result.cost_usd:.3f}, {trial.result.turns} turns)",
-                    file=sys.stderr,
-                )
+                    return
+            trials.append(trial)
+            spent += trial.result.cost_usd
+            log.write(json.dumps(trial.record(), default=str) + "\n")
+            log.flush()
+            mark = "pass" if trial.passed else "FAIL"
+            print(
+                f"{task.id} #{n}: {mark}  (${trial.result.cost_usd:.3f}, {trial.result.turns} turns)", file=sys.stderr
+            )
+
+        async with anyio.create_task_group() as group:
+            for task in tasks:
+                for n in range(1, args.trials + 1):
+                    group.start_soon(one, task, n)
+
+    if skipped:
+        print(f"skipped {skipped} trials: ${spent:.2f} spent reached the ${args.max_usd:.2f} cap", file=sys.stderr)
+    trials.sort(key=lambda t: (t.task, t.trial))
     report = summary(trials)
     (out / "summary.txt").write_text(report + "\n", encoding="utf-8")
-    meta: dict[str, Any] = {"agent": agent.name, "trials_per_task": args.trials, "tasks": [t.id for t in tasks]}
+    meta: dict[str, Any] = {
+        "agent": agent.name,
+        "trials_per_task": args.trials,
+        "tasks": [t.id for t in tasks],
+        "skipped": skipped,
+    }
     (out / "run.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     print(report)
     print(f"\nwritten to {out}", file=sys.stderr)
@@ -114,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--trials", type=int, default=1)
     parser.add_argument("--max-turns", type=int, default=30)
     parser.add_argument("--max-usd", type=float, default=5.0)
+    parser.add_argument("--jobs", type=int, default=4, help="trials run at the same time")
     parser.add_argument("--out", default="evals/out")
     parser.add_argument("--yes", action="store_true", help="confirm a model run spends money")
     args = parser.parse_args(argv)

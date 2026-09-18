@@ -169,7 +169,9 @@ async def test_what_the_person_answers_decides(
         plan = await tools("propose_cancellation", reference=reference, reason="test")
         outcome = await tools("apply_plan", plan_id=plan["plan_id"])
     assert outcome["status"] == status
-    assert len(person.asked) == 1 and "Ask the carrier to cancel confirmed booking" in person.asked[0]
+    assert len(person.asked) == 1
+    assert "Action: ask the carrier to cancel confirmed booking" in person.asked[0]
+    assert 'Reason: "test"' in person.asked[0]
     assert sim.desk.find(reference).cancellation is None
 
 
@@ -278,7 +280,8 @@ async def test_every_step_is_recorded_in_order(make_lashing: Factory) -> None:
     service.plans.approve(plan_id, by="operator:alice")
     await service.apply(plan_id)
     kinds = [e["kind"] for e in service.ledger.entries()]
-    assert kinds == ["proposed", "awaiting_approval", "approved", "applying", "applied"]
+    # "observed": the carrier confirmed the request under a new booking reference, recorded for list_bookings
+    assert kinds == ["proposed", "awaiting_approval", "approved", "applying", "applied", "observed"]
     assert service.ledger.verify().ok
 
 

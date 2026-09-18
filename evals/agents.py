@@ -288,6 +288,9 @@ class ClaudeAgent:
     """
 
     def __init__(self, model: str = "claude-opus-5", *, effort: str | None = None, max_turns: int = 30) -> None:
+        if model not in PRICES:
+            known = ", ".join(sorted(PRICES))
+            raise ValueError(f"no price for {model!r}, so --max-usd could not stop the run; add it to PRICES ({known})")
         import anthropic  # noqa: PLC0415 - only the evals need the SDK
 
         self._omit = anthropic.omit

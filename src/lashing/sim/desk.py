@@ -201,8 +201,7 @@ class Desk:
         if booking.status in AFTER_CONFIRMATION:
             if booking.cancellation is CancellationStatus.CANCELLATION_RECEIVED:
                 raise DeskError(409, "a cancellation of this booking is awaiting processing")
-            if reference != booking.booking_reference:
-                raise DeskError(409, "an amendment must be addressed by carrierBookingReference")
+            # Booking 2.0: the PUT path "can contain one of carrierBookingRequestReference or carrierBookingReference".
             booking.amended_request = self._strip_references(request)
             booking.amendment = AmendmentStatus.AMENDMENT_RECEIVED
             if booking.status is BookingStatus.PENDING_AMENDMENT:
@@ -255,9 +254,10 @@ class Desk:
 
     # -- the carrier's side ----------------------------------------------------------------------
 
-    def process(self) -> None:
-        """Handle everything waiting for the carrier, as a desk would between two polls."""
-        for booking in list(self.bookings.values()):
+    def process(self, reference: str | None = None) -> None:
+        """Handle everything waiting for the carrier (or for one booking), as a desk would between two polls."""
+        targets = [self.find(reference)] if reference else list(self.bookings.values())
+        for booking in targets:
             override = self._override(booking)
             if override is not None and override.action == "hold":
                 continue
@@ -514,6 +514,8 @@ class Desk:
         if booking.cancellation:
             payload["bookingCancellationStatus"] = booking.cancellation.value
         payload.update(copy.deepcopy(content))
+        if booking.booking_reference and not amended:
+            self._reference_commodities(payload, booking.booking_reference)
         if booking.feedbacks:
             payload["feedbacks"] = copy.deepcopy(booking.feedbacks)
         if booking.route is not None and not amended:
@@ -527,6 +529,13 @@ class Desk:
                 for code, moment in booking.route.cut_offs().items()
             ]
         return payload
+
+    @staticmethod
+    def _reference_commodities(payload: dict[str, Any], booking_reference: str) -> None:
+        """A confirmed booking gives every commodity a carrier reference the shipping instructions will quote."""
+        for i, equipment in enumerate(payload.get("requestedEquipments", []), start=1):
+            for j, commodity in enumerate(equipment.get("commodities", []), start=1):
+                commodity.setdefault("commoditySubReference", f"{booking_reference}-{i}-{j}")
 
     @staticmethod
     def _transport(sequence: int, leg: Any) -> dict[str, Any]:

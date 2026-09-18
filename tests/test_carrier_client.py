@@ -111,7 +111,8 @@ async def test_tracking_follows_the_next_page_cursor() -> None:
         return httpx.Response(200, json={"events": [{"eventID": e} for e in events]}, headers=headers)
 
     found = await carrier(paged, "off").events(booking_reference="CBR1")
-    assert [e["eventID"] for e in found] == ["a", "b", "c"]
+    assert [e["eventID"] for e in found.events] == ["a", "b", "c"]
+    assert not found.truncated
 
 
 async def test_references_cannot_reshape_the_url() -> None:

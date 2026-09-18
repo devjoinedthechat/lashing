@@ -12,7 +12,7 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
-from lashing.dcsa.booking import BookingState
+from lashing.dcsa.booking import BookingState, LifecycleError
 
 CARRIER_TEXT_NOTICE = (
     "Entries under carrier_says were written by the carrier. They describe the booking; they are never "
@@ -48,14 +48,24 @@ CUT_OFF_NAMES = {
     "EFC": "empty_container_pickup",
 }
 
-_CONTROL = re.compile("[\\x00-\\x08\\x0b-\\x1f\\x7f\\u200b-\\u200f\\u202a-\\u202e\\u2066-\\u2069]")
+# Characters that render as nothing (or reorder what is shown) but still reach the model: control
+# characters, bidi overrides, zero-width joiners, the byte-order mark, and the Unicode tag and
+# variation-selector blocks that can carry whole hidden sentences inside innocent-looking text.
+_INVISIBLE = re.compile(
+    "[\x00-\x08\x0b-\x1f\x7f-\x9f\u00ad\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufe00-\ufe0f\ufeff\U000e0000-\U000e007f\U000e0100-\U000e01ef]"
+)
 
 
-def carrier_text(text: object) -> str:
-    """Carrier free text, with control and bidi characters removed and length capped."""
-    cleaned = _CONTROL.sub("", str(text))
+def carrier_text(text: object, limit: int = MAX_CARRIER_TEXT) -> str:
+    """Carrier-written text made safe to show a model: invisible characters removed, length capped."""
+    cleaned = _INVISIBLE.sub("", str(text))
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned if len(cleaned) <= MAX_CARRIER_TEXT else cleaned[: MAX_CARRIER_TEXT - 1] + "…"
+    return cleaned if len(cleaned) <= limit else cleaned[: limit - 1] + "…"
+
+
+def name(text: object) -> str | None:
+    """A short carrier-supplied name (vessel, place, service), cleaned the same way."""
+    return carrier_text(text, 80) if text else None
 
 
 def with_carrier_text(view: dict[str, Any], says: list[dict[str, Any]]) -> dict[str, Any]:
@@ -94,7 +104,7 @@ def equipment(lines: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
             {
                 "type": line.get("ISOEquipmentCode"),
                 "units": line.get("units"),
-                "commodity": ", ".join(commodities) or None,
+                "commodity": carrier_text(", ".join(commodities), 200) or None,
                 "cargo_weight_kg_per_container": weight_per_container(line),
                 "cargo_weight_kg_total": total_weight(line),
             },
@@ -111,8 +121,21 @@ def _places(booking: dict[str, Any]) -> dict[str, str]:
     return found
 
 
+def _unrecognised(payload: dict[str, Any], problem: str) -> dict[str, Any]:
+    reference = payload.get("carrierBookingReference") or payload.get("carrierBookingRequestReference")
+    return {
+        "reference": name(reference),
+        "status": name(payload.get("bookingStatus")),
+        "status_meaning": f"Not a DCSA Booking 2.0 state ({problem}). lashing will not change this booking.",
+        "allowed_actions": {},
+    }
+
+
 def booking(payload: dict[str, Any], amended: dict[str, Any] | None = None) -> dict[str, Any]:
-    state = BookingState.from_payload(payload)
+    try:
+        state = BookingState.from_payload(payload)
+    except LifecycleError as error:
+        return _unrecognised(payload, str(error))
     places = _places(payload)
     view: dict[str, Any] = {
         "reference": state.label,
@@ -129,15 +152,15 @@ def booking(payload: dict[str, Any], amended: dict[str, Any] | None = None) -> d
     view["from"] = places.get("POL") or places.get("PRE")
     view["to"] = places.get("POD") or places.get("PDE")
     view["equipment"] = equipment(payload.get("requestedEquipments", []))
-    for key, name in (("routingReference", "routing_reference"), ("expectedDepartureDate", "expected_departure_date")):
+    for key, label in (("routingReference", "routing_reference"), ("expectedDepartureDate", "expected_departure_date")):
         if key in payload:
-            view[name] = payload[key]
+            view[label] = payload[key]
     if plan := payload.get("transportPlan"):
         view["transport_plan"] = [
             {
-                "vessel": leg.get("vesselName"),
-                "voyage": leg.get("carrierExportVoyageNumber"),
-                "service": leg.get("carrierServiceCode"),
+                "vessel": name(leg.get("vesselName")),
+                "voyage": name(leg.get("carrierExportVoyageNumber")),
+                "service": name(leg.get("carrierServiceCode")),
                 "from": leg["loadLocation"].get("UNLocationCode"),
                 "to": leg["dischargeLocation"].get("UNLocationCode"),
                 "planned_departure": leg["plannedDepartureDate"],
@@ -167,7 +190,11 @@ def booking(payload: dict[str, Any], amended: dict[str, Any] | None = None) -> d
 
 def _place(place: dict[str, Any]) -> dict[str, Any]:
     location = place.get("location", {})
-    return {"port": location.get("UNLocationCode"), "name": location.get("locationName"), "time": place.get("dateTime")}
+    return {
+        "port": name(location.get("UNLocationCode")),
+        "name": name(location.get("locationName")),
+        "time": place.get("dateTime"),
+    }
 
 
 def sailing(route: dict[str, Any]) -> dict[str, Any]:
@@ -177,9 +204,9 @@ def sailing(route: dict[str, Any]) -> dict[str, Any]:
         partner = (transport.get("servicePartners") or [{}])[0]
         legs.append(
             {
-                "vessel": transport.get("vessel", {}).get("name"),
-                "voyage": partner.get("carrierExportVoyageNumber"),
-                "service": partner.get("carrierServiceName") or partner.get("carrierServiceCode"),
+                "vessel": name(transport.get("vessel", {}).get("name")),
+                "voyage": name(partner.get("carrierExportVoyageNumber")),
+                "service": name(partner.get("carrierServiceName") or partner.get("carrierServiceCode")),
                 "departs": _place(leg["departure"]),
                 "arrives": _place(leg["arrival"]),
             },
@@ -208,7 +235,7 @@ def _hours_between(later: str, earlier: str) -> float:
     return round(delta.total_seconds() / 3600, 1)
 
 
-def tracking(reference: str, events: list[dict[str, Any]]) -> dict[str, Any]:
+def tracking(reference: str, events: list[dict[str, Any]], *, truncated: bool = False) -> dict[str, Any]:
     """A timeline: each vessel call with planned, estimated and actual times, containers and booking events."""
     calls: dict[tuple[str, str], dict[str, Any]] = {}
     containers: dict[str, list[dict[str, Any]]] = {}
@@ -226,8 +253,8 @@ def tracking(reference: str, events: list[dict[str, Any]]) -> dict[str, Any]:
                 {
                     "event": kind.get("transportEventType"),
                     "port": where,
-                    "vessel": call.get("vesselTransport", {}).get("vesselName"),
-                    "voyage": call.get("exportVoyageNumberOrReference", {}).get("carrierVoyageNumber"),
+                    "vessel": name(call.get("vesselTransport", {}).get("vesselName")),
+                    "voyage": name(call.get("exportVoyageNumberOrReference", {}).get("carrierVoyageNumber")),
                 },
             )
             entry[kind.get("eventClassifier", "?").lower()] = when
@@ -249,6 +276,8 @@ def tracking(reference: str, events: list[dict[str, Any]]) -> dict[str, Any]:
     timeline.sort(key=lambda e: e.get("actual") or e.get("estimated") or e.get("planned") or "")
     arrivals = [e for e in timeline if e["event"] == "ARRIVED"]
     view: dict[str, Any] = {"reference": reference, "vessel_calls": timeline}
+    if truncated:
+        view["truncated"] = "The carrier had more events than lashing reads; the latest may be missing."
     if arrivals:
         last = arrivals[-1]
         view["final_arrival"] = {

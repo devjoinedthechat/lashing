@@ -197,7 +197,9 @@ class CarrierApi:
             elif action == "override":
                 sim.desk.set_override(body["reference"], body["action"], body.get("message"))
             elif action == "process":
-                sim.desk.process()
+                sim.desk.process(body.get("reference"))
+            elif action == "mode":
+                sim.desk.auto_process = bool(body["auto"])
             else:
                 return JSONResponse({"error": f"unknown control {action!r}"}, status_code=404)
         except (KeyError, ValueError, DeskError) as error:

@@ -76,15 +76,22 @@ class BookingState:
 
     @classmethod
     def from_payload(cls, booking: Mapping[str, Any]) -> BookingState:
-        amendment = booking.get("amendedBookingStatus")
-        cancellation = booking.get("bookingCancellationStatus")
-        return cls(
-            status=BookingStatus(booking["bookingStatus"]),
-            amendment=AmendmentStatus(amendment) if amendment else None,
-            cancellation=CancellationStatus(cancellation) if cancellation else None,
-            request_reference=booking.get("carrierBookingRequestReference"),
-            booking_reference=booking.get("carrierBookingReference"),
-        )
+        """Read the state from a Booking; a status the standard does not define is a LifecycleError."""
+        try:
+            status = BookingStatus(booking["bookingStatus"])
+            amendment = booking.get("amendedBookingStatus")
+            cancellation = booking.get("bookingCancellationStatus")
+            return cls(
+                status=status,
+                amendment=AmendmentStatus(amendment) if amendment else None,
+                cancellation=CancellationStatus(cancellation) if cancellation else None,
+                request_reference=booking.get("carrierBookingRequestReference"),
+                booking_reference=booking.get("carrierBookingReference"),
+            )
+        except KeyError:
+            raise LifecycleError("the carrier's booking has no bookingStatus") from None
+        except ValueError as error:
+            raise LifecycleError(f"the carrier sent a status DCSA Booking 2.0 does not define: {error}") from None
 
     @property
     def reference(self) -> str:

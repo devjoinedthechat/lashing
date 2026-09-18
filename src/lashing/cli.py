@@ -26,7 +26,8 @@ def default_state_dir() -> Path:
 
 
 def _config(args: argparse.Namespace) -> Config:
-    config = load(Path(args.config)) if getattr(args, "config", None) else None
+    # Operator commands never call the carrier, so they do not need (or read) its credentials.
+    config = load(Path(args.config), credentials=False) if getattr(args, "config", None) else None
     if config is not None:
         return config
     from lashing.config import DEMO_SHIPPER  # noqa: PLC0415
@@ -71,7 +72,9 @@ def cmd_sim(args: argparse.Namespace) -> int:
     from lashing.sim.app import create_app  # noqa: PLC0415
 
     sim = Simulator(_start(args.start))
-    print(f"simulated carrier at http://{args.host}:{args.port} (clock {sim.now.isoformat()})", file=sys.stderr)
+    sim.desk.auto_process = not args.manual
+    mode = "manual: POST /_sim/process decides" if args.manual else "automatic"
+    print(f"simulated carrier at http://{args.host}:{args.port} (clock {sim.now.isoformat()}, {mode})", file=sys.stderr)
     uvicorn.run(create_app(sim), host=args.host, port=args.port, log_level="warning")
     return 0
 
@@ -79,7 +82,8 @@ def cmd_sim(args: argparse.Namespace) -> int:
 def cmd_plans(args: argparse.Namespace) -> int:
     book = PlanBook(Ledger(_config(args).state_dir / "ledger.jsonl"))
     open_plans = [s.plan.view() | ({"approved_by": s.approved_by} if s.approved_by else {}) for s in book.open()]
-    print(json.dumps(open_plans, indent=2))
+    doubtful = [s.plan.view() | {"status": s.status} for s in book.in_doubt()]
+    print(json.dumps({"open": open_plans, "in_doubt": doubtful}, indent=2))
     return 0
 
 
@@ -101,6 +105,31 @@ def cmd_approve(args: argparse.Namespace) -> int:
     name = args.as_ or getpass.getuser()
     book.approve(args.plan_id, by=f"operator:{name}")
     print(f"approved as operator:{name}; the agent can now call apply_plan({args.plan_id!r})")
+    return 0
+
+
+def cmd_resolve(args: argparse.Namespace) -> int:
+    """Record what really happened to a plan in doubt, after checking with the carrier."""
+    book = PlanBook(Ledger(_config(args).state_dir / "ledger.jsonl"))
+    state = book.get(args.plan_id)
+    if state is None or state.status not in ("applying", "unknown"):
+        print(f"plan {args.plan_id} is not in doubt", file=sys.stderr)
+        return 1
+    print(json.dumps(state.plan.view() | {"status": state.status}, indent=2))
+    if not args.yes:
+        if not sys.stdin.isatty():
+            print("refusing to resolve without a terminal; pass --yes to resolve non-interactively", file=sys.stderr)
+            return 1
+        typed = input(f"\nType the plan id to record it as {args.outcome} ({args.plan_id}): ").strip()
+        if typed != args.plan_id:
+            print("not recorded", file=sys.stderr)
+            return 1
+    details = {"reference": args.reference} if args.reference else {}
+    name = args.as_ or getpass.getuser()
+    if book.resolve(args.plan_id, args.outcome, by=f"operator:{name}", **details) is None:
+        print(f"plan {args.plan_id} was resolved by someone else meanwhile", file=sys.stderr)
+        return 1
+    print(f"recorded {args.plan_id} as {args.outcome}")
     return 0
 
 
@@ -143,6 +172,11 @@ def parser() -> argparse.ArgumentParser:
     sim.add_argument("--host", default="127.0.0.1")
     sim.add_argument("--port", type=int, default=8401)
     sim.add_argument("--start", help="the simulator's clock, ISO 8601 (default: today 08:00 UTC)")
+    sim.add_argument(
+        "--manual",
+        action="store_true",
+        help="the carrier decides only when told (POST /_sim/process), as a conformance run needs",
+    )
     sim.set_defaults(run=cmd_sim)
 
     with_state(commands.add_parser("plans", help="list plans waiting to be applied")).set_defaults(run=cmd_plans)
@@ -152,6 +186,14 @@ def parser() -> argparse.ArgumentParser:
     approve.add_argument("--as", dest="as_", help="the approver's name (default: your OS user)")
     approve.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
     approve.set_defaults(run=cmd_approve)
+
+    resolve = with_state(commands.add_parser("resolve", help="record what happened to a plan in doubt"))
+    resolve.add_argument("plan_id")
+    resolve.add_argument("outcome", choices=["applied", "failed"], help="what the carrier shows happened")
+    resolve.add_argument("--reference", help="the booking reference the carrier shows, if applied")
+    resolve.add_argument("--as", dest="as_", help="your name (default: your OS user)")
+    resolve.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
+    resolve.set_defaults(run=cmd_resolve)
 
     ledger = with_state(commands.add_parser("ledger", help="verify or read the ledger"))
     ledger.add_argument("action", choices=["verify", "head", "show"])

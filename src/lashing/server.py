@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from lashing import __version__
 from lashing.carrier import CarrierError, Endpoints, HttpCarrier
 from lashing.config import Config
+from lashing.dcsa.booking import LifecycleError
 from lashing.plans import Plan
 from lashing.service import EquipmentLine, InvalidRequest, Lashing
 from lashing.sim import Simulator
@@ -56,11 +57,13 @@ class Equipment(BaseModel):
     type: str = Field(
         description="ISO 6346 size-type code such as 22G1, 42G1, 45G1, or a common name: 20GP, 40GP, 40HC, 20RF, 40RF"
     )
-    units: int = Field(ge=1, description="Number of containers of this type")
+    units: int = Field(ge=1, le=999, description="Number of containers of this type")
     commodity: str | None = Field(default=None, description="What the cargo is, e.g. 'Flat-packed furniture'")
     cargo_weight_kg_per_container: float | None = Field(
         default=None,
         gt=0,
+        le=100_000,
+        allow_inf_nan=False,
         description="Gross cargo weight in each container, in kg (lashing sends DCSA the line total)",
     )
 
@@ -91,7 +94,7 @@ def build_server(service: Lashing) -> MCPServer:
     async def guarded(call: Any) -> dict[str, Any]:
         try:
             result: dict[str, Any] = await call
-        except (InvalidRequest, CarrierError) as error:
+        except (InvalidRequest, CarrierError, LifecycleError) as error:
             raise ToolError(str(error)) from None
         return result
 
@@ -102,9 +105,12 @@ def build_server(service: Lashing) -> MCPServer:
         depart_from: Annotated[dt.date | None, Field(description="Earliest departure date")] = None,
         depart_until: Annotated[dt.date | None, Field(description="Latest departure date")] = None,
         max_transshipments: Annotated[int, Field(ge=0, le=3)] = 1,
+        limit: Annotated[int, Field(ge=1, le=20, description="How many options to return")] = 8,
     ) -> dict[str, Any]:
         """Sailings from one port to another, earliest arrival first, with cut-offs and a routing_reference to book."""
-        return await guarded(service.find_sailings(origin, destination, depart_from, depart_until, max_transshipments))
+        return await guarded(
+            service.find_sailings(origin, destination, depart_from, depart_until, max_transshipments, limit),
+        )
 
     @server.tool(annotations=READ)
     async def get_booking(reference: Reference) -> dict[str, Any]:
@@ -129,7 +135,7 @@ def build_server(service: Lashing) -> MCPServer:
     @server.tool(annotations=READ)
     async def list_plans() -> dict[str, Any]:
         """Proposed changes that have not been applied, discarded or refused yet."""
-        return {"plans": service.open_plans()}
+        return service.open_plans()
 
     @server.tool(annotations=PROPOSE)
     async def propose_booking(

@@ -69,3 +69,8 @@ async def test_the_model_loop_calls_tools_returns_results_and_counts_cost() -> N
     assert trial.result.turns == 2
     assert trial.result.cost_usd == pytest.approx(cost("claude-opus-5", {"input_tokens": 2000, "output_tokens": 200}))
     assert trial.result.cost_usd == pytest.approx((2000 * 5 + 200 * 25) / 1_000_000)
+
+
+def test_a_model_without_a_price_is_refused_so_the_spend_cap_holds() -> None:
+    with pytest.raises(ValueError, match="no price"):
+        ClaudeAgent("claude-some-future-model")

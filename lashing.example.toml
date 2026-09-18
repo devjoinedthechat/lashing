@@ -42,18 +42,25 @@ client = true
 operator = true
 
 # Grants let the agent apply some writes without asking anyone. Everything not covered by a
-# grant needs a person's approval. Patterns use shell-style wildcards.
+# grant needs a person's approval. Patterns use shell-style wildcards. A grant restricted to
+# certain bookings or lanes never covers a plan whose booking or lane lashing cannot determine.
+# Unknown keys are errors, so a typo cannot silently widen a grant.
 
 [[grant]]
 id = "rebook-to-another-sailing"
 actions = ["amend"]
 bookings = ["*"]
-fields = ["routingReference", "expectedDepartureDate"]
+# A move to another sailing sets routingReference and drops the old vessel and voyage fields.
+fields = [
+  "routingReference", "expectedDepartureDate", "vessel", "carrierExportVoyageNumber",
+  "universalExportVoyageReference", "carrierServiceCode", "carrierServiceName", "universalServiceReference",
+]
 note = "Moving a confirmed booking to another sailing is routine."
 
 [[grant]]
 id = "small-asia-europe-bookings"
 actions = ["create"]
 lanes = ["CN*-NL*", "CN*-DE*", "CN*-BE*"]
-max_units = 4
+max_units = 4        # per booking
+max_per_day = 10     # bookings this grant may send in any 24 hours
 expires = 2026-12-31
