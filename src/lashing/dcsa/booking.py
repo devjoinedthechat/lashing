@@ -7,6 +7,7 @@ carry. They are encoded once here, so neither the MCP tools nor an agent has to 
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
@@ -201,3 +202,21 @@ def cancellation_kind(payload: Mapping[str, Any]) -> Cancellation:
     if payload[present[0]] != required:
         raise LifecycleError(f"{present[0]} can only be set to {required}")
     return kind
+
+
+# Booking fields only the carrier sets. They are read from a booking but never sent back.
+CARRIER_SET_FIELDS = frozenset(
+    {
+        "bookingStatus", "amendedBookingStatus", "bookingCancellationStatus", "feedbacks",
+        "confirmedEquipments", "transportPlan", "shipmentCutOffTimes", "charges", "advanceManifestFilings",
+    },
+)  # fmt: skip
+
+
+def update_body(booking: Mapping[str, Any]) -> dict[str, Any]:
+    """The UpdateBooking body that restates a booking as the carrier holds it, ready to be changed.
+
+    It keeps the booking's references: Booking 2.0.5 requires carrierBookingRequestReference and/or
+    carrierBookingReference in an update or amendment (found by DCSA's Conformance Framework).
+    """
+    return {key: copy.deepcopy(value) for key, value in booking.items() if key not in CARRIER_SET_FIELDS}

@@ -17,6 +17,7 @@ from lashing.dcsa.booking import (
     LifecycleError,
     cancellation_kind,
     cancellation_payload,
+    update_body,
 )
 from lashing.dcsa.schema import Spec, issues
 
@@ -121,3 +122,20 @@ def test_state_is_read_from_a_booking_payload() -> None:
     )
     assert state.reference == "CBR1"
     assert state.allowed_actions() == ["amend", "cancel_confirmed", "cancel_amendment"]
+
+
+def test_an_update_body_keeps_the_references_and_drops_what_the_carrier_sets() -> None:
+    """Found by DCSA's Conformance Framework: UpdateBooking needs one of the two booking references."""
+    booking = {
+        "carrierBookingRequestReference": "cbrr-1",
+        "carrierBookingReference": "CBR1",
+        "bookingStatus": "CONFIRMED",
+        "transportPlan": [],
+        "feedbacks": [],
+        "receiptTypeAtOrigin": "CY",
+    }
+    assert update_body(booking) == {
+        "carrierBookingRequestReference": "cbrr-1",
+        "carrierBookingReference": "CBR1",
+        "receiptTypeAtOrigin": "CY",
+    }

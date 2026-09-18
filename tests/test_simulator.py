@@ -280,3 +280,55 @@ async def test_tracking_pages_with_a_cursor(http: httpx.AsyncClient, sim: Simula
 def test_generated_identifiers_carry_valid_check_digits(sim: Simulator) -> None:
     assert all(is_valid_imo(v.vessel.imo) for v in sim.world.voyages.values())
     assert container_number(305438, owner="CSQ") == "CSQU3054383"  # the worked example in ISO 6346
+
+
+async def test_a_request_is_cancelled_on_receipt_even_in_manual_mode(http: httpx.AsyncClient, sim: Simulator) -> None:
+    """UseCase 11 has no carrier step, and DCSA's Conformance Framework expects it to take effect at once."""
+    sim.desk.auto_process = False
+    reference = await book(http, shanghai_rotterdam())
+    assert (await http.patch(f"/bkg/v2/bookings/{reference}", json={"bookingStatus": "CANCELLED"})).status_code == 202
+    assert (await fetch(http, reference))["bookingStatus"] == "CANCELLED"
+
+
+async def test_a_confirmed_booking_can_be_cancelled_by_either_reference(
+    http: httpx.AsyncClient, sim: Simulator
+) -> None:
+    """The spec text names carrierBookingReference; DCSA's framework sends the request reference. Both work."""
+    reference = await book(http, shanghai_rotterdam())
+    await fetch(http, reference)  # confirmed
+    body = {"bookingCancellationStatus": "CANCELLATION_RECEIVED", "reason": "order withdrawn"}
+    assert (await http.patch(f"/bkg/v2/bookings/{reference}", json=body)).status_code == 202
+    assert (await fetch(http, reference))["bookingStatus"] == "CANCELLED"
+
+
+async def test_scenario_controls_decline_a_cancellation_and_complete_a_booking(
+    http: httpx.AsyncClient,
+    sim: Simulator,
+) -> None:
+    reference = await book(http, shanghai_rotterdam())
+    await fetch(http, reference)
+    sim.desk.auto_process = False
+    await http.post(
+        "/_sim/override", json={"reference": reference, "action": "decline_cancellation", "message": "Too late"}
+    )
+    await http.patch(f"/bkg/v2/bookings/{reference}", json={"bookingCancellationStatus": "CANCELLATION_RECEIVED"})
+    await http.post("/_sim/process", json={"reference": reference})
+    declined = await fetch(http, reference)
+    assert (declined["bookingStatus"], declined["bookingCancellationStatus"]) == ("CONFIRMED", "CANCELLATION_DECLINED")
+    assert (await http.post("/_sim/complete", json={"reference": reference})).status_code == 200
+    assert (await fetch(http, reference))["bookingStatus"] == "COMPLETED"
+
+
+async def test_the_amended_view_carries_what_the_confirmed_booking_carries(
+    http: httpx.AsyncClient, sim: Simulator
+) -> None:
+    confirmed = await fetch(http, await book(http, shanghai_rotterdam()))
+    sim.desk.auto_process = False
+    amended_request = shanghai_rotterdam()
+    amended_request["requestedEquipments"][0]["units"] = 2
+    await http.put(f"/bkg/v2/bookings/{confirmed['carrierBookingReference']}", json=amended_request)
+    amended = await fetch(http, confirmed["carrierBookingReference"], amendedContent="true")
+    assert amended["requestedEquipments"][0]["units"] == 2
+    assert amended["confirmedEquipments"] == [{"ISOEquipmentCode": "22GP", "units": 1}]  # what was confirmed
+    assert amended["transportPlan"] and amended["shipmentCutOffTimes"]
+    assert amended["requestedEquipments"][0]["commodities"][0]["commoditySubReference"]

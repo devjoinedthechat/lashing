@@ -185,8 +185,8 @@ class Desk:
         if amended:
             if booking.amended_request is None or booking.status is BookingStatus.PENDING_AMENDMENT:
                 raise DeskError(404, f"booking {reference!r} has no amendment to show")
-            return self._payload(booking, booking.amended_request, amended=True)
-        return self._payload(booking, booking.request, amended=False)
+            return self._payload(booking, booking.amended_request)
+        return self._payload(booking, booking.request)
 
     def change(self, reference: str, request: dict[str, Any]) -> None:
         booking = self.find(reference)
@@ -218,18 +218,20 @@ class Desk:
         except LifecycleError as error:
             raise DeskError(400, str(error)) from None
         reason = body.get("reason")
+        # The CancelBookingRequest descriptions say a confirmed booking or its amendment is addressed by
+        # carrierBookingReference, but DCSA's Conformance Framework sends the request reference when it
+        # has had no notification carrying the booking reference. Either reference names one booking,
+        # so the simulator accepts both; lashing's own client always sends the one the text asks for.
         if kind is Cancellation.REQUEST:
             if booking.status not in BEFORE_CONFIRMATION:
                 raise DeskError(409, f"a booking in status {booking.status.value} cannot be cancelled this way")
-            if reference != booking.request_reference:
-                raise DeskError(409, "cancelling a booking request must use its carrierBookingRequestReference")
-            self._note(booking, "CANCELLATION_REQUESTED", reason)
-            booking.pending.add("cancel_request")
+            # UseCase 11 has no carrier step: a request the carrier has not confirmed is cancelled on receipt.
+            booking.pending.clear()
+            self._release(booking)
+            self._set(booking, BookingStatus.CANCELLED, reason)
         elif kind is Cancellation.AMENDMENT:
             if booking.amendment is not AmendmentStatus.AMENDMENT_RECEIVED:
                 raise DeskError(404, "there is no pending amendment to cancel")
-            if reference != booking.booking_reference:
-                raise DeskError(409, "cancelling an amendment must use the carrierBookingReference")
             booking.pending.discard("amendment")
             booking.amendment = AmendmentStatus.AMENDMENT_CANCELLED
             booking.amended_request = None
@@ -239,8 +241,6 @@ class Desk:
                 raise DeskError(409, f"a booking in status {booking.status.value} is not confirmed")
             if booking.cancellation is CancellationStatus.CANCELLATION_RECEIVED:
                 raise DeskError(409, "a cancellation of this booking is already awaiting processing")
-            if reference != booking.booking_reference:
-                raise DeskError(409, "cancelling a confirmed booking must use the carrierBookingReference")
             booking.cancellation = CancellationStatus.CANCELLATION_RECEIVED
             self._note(booking, CancellationStatus.CANCELLATION_RECEIVED.value, reason)
             booking.pending.add("cancellation")
@@ -261,11 +261,6 @@ class Desk:
             override = self._override(booking)
             if override is not None and override.action == "hold":
                 continue
-            if "cancel_request" in booking.pending:
-                booking.pending.clear()
-                self._release(booking)
-                self._set(booking, BookingStatus.CANCELLED)
-                continue
             if "request" in booking.pending:
                 booking.pending.discard("request")
                 self._decide_request(booking, override)
@@ -274,7 +269,7 @@ class Desk:
                 self._decide_amendment(booking, override)
             if "cancellation" in booking.pending:
                 booking.pending.discard("cancellation")
-                self._decide_cancellation(booking)
+                self._decide_cancellation(booking, override)
             if override is not None and override.action in ("request_amendment", "decline"):
                 self._carrier_initiated(booking, override)
 
@@ -339,9 +334,16 @@ class Desk:
         self._note(booking, AmendmentStatus.AMENDMENT_CONFIRMED.value)
         self._set(booking, BookingStatus.CONFIRMED)
 
-    def _decide_cancellation(self, booking: SimBooking) -> None:
-        if booking.route is not None and self.clock.now >= booking.route.departure:
-            message = "The cargo has already sailed; the booking can no longer be cancelled."
+    def _decide_cancellation(self, booking: SimBooking, override: Override | None = None) -> None:
+        sailed = booking.route is not None and self.clock.now >= booking.route.departure
+        if sailed or (override is not None and override.action == "decline_cancellation"):
+            for reference in (booking.booking_reference, booking.request_reference):
+                self.overrides.pop(reference or "", None)
+            message = (
+                "The cargo has already sailed; the booking can no longer be cancelled."
+                if sailed
+                else (override.message if override and override.message else "The cancellation was declined.")
+            )
             booking.cancellation = CancellationStatus.CANCELLATION_DECLINED
             booking.feedbacks = [feedback("ERROR", "INFORMATIONAL_MESSAGE", message)]
             self._note(booking, CancellationStatus.CANCELLATION_DECLINED.value, message)
@@ -504,7 +506,7 @@ class Desk:
 
     # -- payloads --------------------------------------------------------------------------------
 
-    def _payload(self, booking: SimBooking, content: dict[str, Any], *, amended: bool) -> dict[str, Any]:
+    def _payload(self, booking: SimBooking, content: dict[str, Any]) -> dict[str, Any]:
         payload: dict[str, Any] = {"carrierBookingRequestReference": booking.request_reference}
         if booking.booking_reference:
             payload["carrierBookingReference"] = booking.booking_reference
@@ -514,14 +516,14 @@ class Desk:
         if booking.cancellation:
             payload["bookingCancellationStatus"] = booking.cancellation.value
         payload.update(copy.deepcopy(content))
-        if booking.booking_reference and not amended:
+        if booking.booking_reference:
             self._reference_commodities(payload, booking.booking_reference)
         if booking.feedbacks:
             payload["feedbacks"] = copy.deepcopy(booking.feedbacks)
-        if booking.route is not None and not amended:
-            payload["confirmedEquipments"] = [
+        if booking.route is not None:  # a confirmed booking (and its pending amendment) carries the plan
+            payload["confirmedEquipments"] = [  # what the carrier confirmed, not what an amendment asks for
                 {"ISOEquipmentCode": e["ISOEquipmentCode"], "units": e["units"]}
-                for e in content.get("requestedEquipments", [])
+                for e in booking.request.get("requestedEquipments", [])
             ]
             payload["transportPlan"] = [self._transport(i, leg) for i, leg in enumerate(booking.route.legs, start=1)]
             payload["shipmentCutOffTimes"] = [
@@ -559,7 +561,10 @@ class Desk:
     # -- scenario hooks --------------------------------------------------------------------------
 
     def set_override(self, reference: str, action: str, message: str | None = None) -> None:
-        allowed = {"hold", "request_update", "reject", "request_amendment", "decline", "decline_amendment"}
+        allowed = {
+            "hold", "request_update", "reject", "request_amendment", "decline", "decline_amendment",
+            "decline_cancellation",
+        }  # fmt: skip
         if action not in allowed:
             raise ValueError(f"unknown override {action!r}; use one of {sorted(allowed)}")
         self.overrides[reference] = Override(action, message)

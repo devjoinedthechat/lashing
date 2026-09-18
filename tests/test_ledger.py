@@ -31,6 +31,14 @@ def test_state_files_are_private(tmp_path: Path) -> None:
     assert stat.S_IMODE(os.stat(ledger.path.parent).st_mode) == 0o700
 
 
+def test_an_existing_open_ledger_is_tightened_on_the_next_write(tmp_path: Path) -> None:
+    path = tmp_path / "ledger.jsonl"
+    path.write_bytes(b"")
+    path.chmod(0o644)
+    Ledger(path).append("noted")
+    assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+
+
 def test_a_second_writer_is_seen_without_rereading_everything(tmp_path: Path) -> None:
     mine, theirs = Ledger(tmp_path / "l.jsonl"), Ledger(tmp_path / "l.jsonl")
     mine.append("proposed", plan={"id": "p"})

@@ -16,7 +16,8 @@
 <p align="center">
   <a href="https://github.com/devjoinedthechat/lashing/actions/workflows/ci.yml"><img src="https://github.com/devjoinedthechat/lashing/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.13%20%7C%203.14-blue" alt="Python 3.13 | 3.14">
-  <img src="https://img.shields.io/badge/tests-225-brightgreen" alt="225 tests">
+  <img src="https://img.shields.io/badge/tests-231-brightgreen" alt="231 tests">
+  <img src="https://img.shields.io/badge/DCSA%20Conformance%20Framework-conformant-2e7d32" alt="DCSA Conformance Framework: conformant">
   <img src="https://img.shields.io/badge/DCSA-Booking%202.0.5%20%C2%B7%20T%26T%203.0.0%20%C2%B7%20Schedules%201.0.4-0e4a6e" alt="DCSA Booking 2.0.5, Track & Trace 3.0.0, Commercial Schedules 1.0.4">
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0">
   <img src="https://img.shields.io/badge/status-pre--alpha-orange" alt="Status: pre-alpha">
@@ -191,13 +192,16 @@ hostile. [tests/test_safety.py](tests/test_safety.py) attacks each defence direc
 
 | What | How it is checked |
 |---|---|
-| Conformance | Every request lashing sends and every response the simulator returns, errors included, is validated against the vendored specs. The validator itself is checked against the 47 examples DCSA embeds in the specs and the Conformance Framework's sample messages |
+| Conformance | DCSA's own [Conformance Framework](conformance/), run headlessly: lashing's client passes all 13 shipper-role scenarios (523 checks) and the simulator all 23 carrier-role scenarios (624 checks) for dry, reefer and dangerous-goods cargo, with none failing. On top of that, every request lashing sends and every response the simulator returns is validated against the vendored specs, and the validator itself against DCSA's 47 embedded examples |
 | The lifecycle rules | Property tests (Hypothesis) hold every allowed action to a valid request body and path reference |
 | The six safety invariants | 30 attack tests, including a fully fooled agent and two processes racing to apply one plan |
 | The MCP surface | End-to-end flows through a real MCP client, and `lashing demo` started as a subprocess over stdio |
 | The eval graders | Scripted agents: a correct one passes all 8 tasks and one that makes each task's target mistake fails all 8 |
 
 The checks caught real mistakes while this was being built:
+- DCSA's Conformance Framework found that lashing's update and amendment bodies left out the booking
+  references `UpdateBooking` requires, and five gaps in the simulator. [conformance/](conformance/)
+  lists them and one discrepancy in the standard itself.
 - The schema check refused the first demo booking lashing built, because its contact details
   lacked the email or phone DCSA requires.
 - Hypothesis found two lifecycle states in which a cancellation was offered wrongly: one where the
@@ -313,7 +317,7 @@ DCSA-OpenAPI's main branch still carries the 3.0.0 beta.
 
 ```sh
 uv sync
-uv run pytest                       # 225 tests, about ten seconds
+uv run pytest                       # 231 tests, a few seconds
 uv run ruff check . && uv run mypy  # strict
 ```
 

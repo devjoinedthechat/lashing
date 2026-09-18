@@ -200,6 +200,8 @@ class CarrierApi:
                 sim.desk.process(body.get("reference"))
             elif action == "mode":
                 sim.desk.auto_process = bool(body["auto"])
+            elif action == "complete":
+                sim.desk.complete(body["reference"])
             else:
                 return JSONResponse({"error": f"unknown control {action!r}"}, status_code=404)
         except (KeyError, ValueError, DeskError) as error:

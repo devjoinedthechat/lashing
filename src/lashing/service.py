@@ -34,6 +34,7 @@ from lashing.dcsa.booking import (
     Change,
     LifecycleError,
     cancellation_payload,
+    update_body,
 )
 from lashing.dcsa.schema import SchemaViolation, Spec, check, load_spec
 from lashing.ledger import Ledger
@@ -56,14 +57,6 @@ _PORT = re.compile(r"^[A-Z]{2}[A-Z2-9]{3}$")
 MAX_UNITS = 999  # per equipment line
 MAX_KG_PER_CONTAINER = 100_000.0  # well above any container's payload; catches unit and typing mistakes
 
-# Booking fields the carrier sets; they are never sent back in an update or amendment.
-CARRIER_FIELDS = frozenset(
-    {
-        "bookingStatus", "amendedBookingStatus", "bookingCancellationStatus", "feedbacks",
-        "confirmedEquipments", "transportPlan", "shipmentCutOffTimes", "charges", "advanceManifestFilings",
-        "carrierBookingRequestReference", "carrierBookingReference",
-    },
-)  # fmt: skip
 VOYAGE_FIELDS = (
     "vessel", "carrierExportVoyageNumber", "universalExportVoyageReference",
     "carrierServiceCode", "carrierServiceName", "universalServiceReference",
@@ -463,7 +456,7 @@ class Lashing:
         base = current
         if change is Change.AMEND and state.amendment is AmendmentStatus.AMENDMENT_RECEIVED:
             base = await self.carrier.get_booking(path_reference, amended=True)  # a new amendment replaces it
-        content = {k: v for k, v in copy.deepcopy(base).items() if k not in CARRIER_FIELDS}
+        content = update_body(base)
         updated = copy.deepcopy(content)
         if routing_reference:
             for key in VOYAGE_FIELDS:

@@ -135,6 +135,8 @@ class Ledger:
         """
         self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         descriptor = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
+        with contextlib.suppress(OSError):  # a ledger made by an older version may be more open than it should be
+            os.fchmod(descriptor, 0o600)
         with self._guard, os.fdopen(descriptor, "r+b") as handle:
             _lock(handle)
             self._catch_up(handle)

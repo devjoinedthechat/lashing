@@ -78,4 +78,4 @@ ignore = [
 [tool.mypy]
 strict = true
 python_version = "3.13"
-files = ["src", "tests", "scripts", "evals"]
+files = ["src", "tests", "scripts", "evals", "conformance"]

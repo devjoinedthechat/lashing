@@ -17,3 +17,4 @@ htmlcov/
 # local runtime state
 .lashing/
 evals/out/
+conformance/out/
