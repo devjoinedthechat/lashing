@@ -18,8 +18,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "httpx>=0.28.1",
     "jsonschema>=4.26.0",
     "mcp>=2.2.0,<3",
+    "starlette>=1.6.0",
+    "uvicorn>=0.53.0",
 ]
 
 [project.scripts]
@@ -61,7 +64,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "PLR2004", "ARG001"]
+"tests/**" = ["S101", "PLR2004", "ARG001", "PLR0917"]
 "evals/**" = ["S101"]
 
 [tool.mypy]
