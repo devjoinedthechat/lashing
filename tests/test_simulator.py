@@ -267,6 +267,21 @@ async def test_tracking_follows_the_clock_and_reports_delays(http: httpx.AsyncCl
     assert {"GATED_IN", "LOADED", "DISCHARGED", "GATED_OUT"} <= kinds
 
 
+async def test_booking_events_at_the_same_instant_keep_their_order(http: httpx.AsyncClient, sim: Simulator) -> None:
+    """Found by an eval: Claude Sonnet 5 noticed PENDING_AMENDMENT listed before CONFIRMED."""
+    reference = (await fetch(http, await book(http, shanghai_rotterdam())))["carrierBookingReference"]
+    sim.desk.set_override(reference, "request_amendment", "Please confirm the commodity.")
+    sim.desk.process()
+    response = await http.get("/tnt/v3/events", params={"carrierBookingReference": reference})
+    shipment = [e for e in response.json()["events"] if e["eventClassification"]["eventType"] == "SHIPMENT"]
+    assert len({e["eventDateTime"] for e in shipment}) == 1  # all at one instant, as in the eval
+    assert [e["eventClassification"]["shipmentEventType"] for e in shipment] == [
+        "RECEIVED",
+        "CONFIRMED",
+        "PENDING_AMENDMENT",
+    ]
+
+
 async def test_tracking_pages_with_a_cursor(http: httpx.AsyncClient, sim: Simulator) -> None:
     await fetch(http, await book(http, shanghai_rotterdam()))
     sim.advance(days=60)

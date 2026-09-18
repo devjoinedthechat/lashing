@@ -97,7 +97,9 @@ class Tracker:
             found = [e for e in found if dt.datetime.fromisoformat(e["eventUpdatedDateTime"]) >= updated_min]
         if updated_max is not None:
             found = [e for e in found if dt.datetime.fromisoformat(e["eventUpdatedDateTime"]) <= updated_max]
-        return sorted(found, key=lambda e: (e["eventDateTime"], e["eventID"]))
+        # A stable sort by time alone: events at the same instant keep the order they happened in.
+        # (Breaking ties by eventID, a hash, once listed PENDING_AMENDMENT before CONFIRMED.)
+        return sorted(found, key=lambda e: e["eventDateTime"])
 
     def _document(self, booking: SimBooking) -> dict[str, str]:
         if booking.booking_reference:
