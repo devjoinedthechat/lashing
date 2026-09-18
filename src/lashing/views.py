@@ -151,7 +151,9 @@ def booking(
     payload: dict[str, Any],
     amended: dict[str, Any] | None = None,
     now: dt.datetime | None = None,
+    arrival: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """A booking as an agent should read it. `arrival` is the tracked final arrival, if there is one."""
     try:
         state = BookingState.from_payload(payload)
     except LifecycleError as error:
@@ -188,6 +190,13 @@ def booking(
             }
             for leg in sorted(plan, key=lambda leg: leg["transportPlanStageSequenceNumber"])
         ]
+        # A carrier does not revise a booking's transport plan when a vessel runs late, so its dates
+        # must never be read alone: an agent that did answered "no change needed" to a delayed shipment.
+        view["transport_plan_note"] = "Dates as booked; the carrier does not revise them for delays. " + (
+            "latest_arrival is the current estimate." if arrival else "track_shipment has the current estimate."
+        )
+    if arrival is not None:
+        view["latest_arrival"] = arrival
     if cut_offs := payload.get("shipmentCutOffTimes"):
         view["cut_offs"] = {
             CUT_OFF_NAMES.get(c["cutOffDateTimeCode"], c["cutOffDateTimeCode"]): c["cutOffDateTime"] for c in cut_offs
@@ -309,6 +318,7 @@ def tracking(reference: str, events: list[dict[str, Any]], *, truncated: bool = 
             "port": last["port"],
             "time": last.get("actual") or last.get("estimated") or last.get("planned"),
             "basis": "actual" if "actual" in last else ("estimated" if "estimated" in last else "planned"),
+            **({"delay_hours": last["delay_hours"]} if "delay_hours" in last else {}),
         }
     if containers:
         view["containers"] = {c: evs[-3:] for c, evs in containers.items()}

@@ -30,6 +30,7 @@ from lashing.config import Config, Grant, Scope
 from lashing.dcsa.booking import (
     AmendmentStatus,
     BookingState,
+    BookingStatus,
     Cancellation,
     Change,
     LifecycleError,
@@ -54,6 +55,8 @@ EQUIPMENT_ALIASES = {
 _ISO_CODE = re.compile(r"^[0-9]{2}[A-Z][0-9A-Z]$")
 _CONTAINER = re.compile(r"^[A-Z]{3}[UJZ][0-9]{7}$")
 _PORT = re.compile(r"^[A-Z]{2}[A-Z2-9]{3}$")
+# Bookings that will not sail, so there is no arrival to track.
+_NOT_SAILING = frozenset({BookingStatus.REJECTED, BookingStatus.DECLINED, BookingStatus.CANCELLED})
 MAX_UNITS = 999  # per equipment line
 MAX_KG_PER_CONTAINER = 100_000.0  # well above any container's payload; catches unit and typing mistakes
 
@@ -238,7 +241,7 @@ class Lashing:
                 amended = await self.carrier.get_booking(state.booking_reference, amended=True)
             except NotFound:
                 amended = None
-        view = views.booking(current, amended, self.clock())
+        view = views.booking(current, amended, self.clock(), await self._latest_arrival(state))
         open_plans = [
             s.plan.view()
             for s in self.plans.open(self.clock())
@@ -247,6 +250,21 @@ class Lashing:
         if open_plans:
             view["open_plans"] = open_plans
         return view
+
+    async def _latest_arrival(self, state: BookingState) -> dict[str, Any] | None:
+        """The carrier's current arrival estimate, best effort: a booking is still shown without it."""
+        if not state.booking_reference or state.status in _NOT_SAILING:
+            return None
+        try:
+            found = await self.carrier.events(booking_reference=state.booking_reference)
+        except CarrierError as error:
+            log.warning("could not read tracking for %s: %s", state.booking_reference, error)
+            return None
+        tracked = views.tracking(state.booking_reference, found.events, truncated=found.truncated)
+        arrival: dict[str, Any] | None = tracked.get("final_arrival")
+        if arrival is not None and found.truncated:
+            arrival = {**arrival, "caveat": tracked["truncated"]}
+        return arrival
 
     async def track(self, reference: str) -> dict[str, Any]:
         reference = reference.strip()

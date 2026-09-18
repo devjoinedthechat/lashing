@@ -98,6 +98,14 @@ async def test_move_a_delayed_booking_to_another_sailing_with_a_persons_approval
         assert any(call.get("delay_hours") == 120.0 for call in tracked["vessel_calls"])
         assert tracked["carrier_says"] == [{"about": "transport", "message": "Berth congestion at Singapore"}]
 
+        # The booking's own dates are as booked; it must not be read as on time. Found by an eval:
+        # a model that only read get_booking answered "no change needed" to this shipment.
+        shown = await tools("get_booking", reference=reference)
+        assert shown["latest_arrival"] == tracked["final_arrival"]
+        assert shown["latest_arrival"]["delay_hours"] == 120.0
+        assert shown["transport_plan"][-1]["planned_arrival"] < shown["latest_arrival"]["time"]
+        assert "does not revise them for delays" in shown["transport_plan_note"]
+
         options = (await tools("find_sailings", origin="CNSHA", destination="NLRTM"))["sailings"]
         faster = next(s for s in options if s["arrives"]["time"] < tracked["final_arrival"]["time"])
         plan = await tools("propose_change", reference=reference, routing_reference=faster["routing_reference"])

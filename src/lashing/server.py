@@ -114,7 +114,10 @@ def build_server(service: Lashing) -> MCPServer:
 
     @server.tool(annotations=READ)
     async def get_booking(reference: Reference) -> dict[str, Any]:
-        """A booking's status, what it means, what can be done next, its route, cut-offs and equipment."""
+        """A booking's status, what it means, what can be done next, its route, cut-offs and equipment.
+
+        Includes the carrier's latest arrival estimate once the booking is confirmed.
+        """
         return await guarded(service.booking(reference))
 
     @server.tool(annotations=READ)

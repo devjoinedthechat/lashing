@@ -119,6 +119,21 @@ async def test_an_unknown_status_from_the_carrier_is_shown_not_crashed_on(sim: S
         await service.propose_cancellation(reference, "test")
 
 
+async def test_a_booking_is_shown_when_tracking_is_down(sim: Simulator, tmp_path: Path) -> None:
+    reference = confirmed_at_carrier(sim)
+    inner = httpx.ASGITransport(app=create_app(sim))
+
+    async def no_tracking(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/tnt/"):
+            return httpx.Response(500, request=request)
+        return await inner.handle_async_request(request)
+
+    view = await service_over(sim, tmp_path, httpx.MockTransport(no_tracking)).booking(reference)
+    assert view["status"] == "CONFIRMED"
+    assert "latest_arrival" not in view
+    assert "track_shipment has the current estimate" in view["transport_plan_note"]
+
+
 # -- stale plans built on a pending amendment ----------------------------------------------------------
 
 
