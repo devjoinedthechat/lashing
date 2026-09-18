@@ -7,6 +7,7 @@ did. The agent reaches lashing through a real MCP client, exactly as Claude Desk
 from __future__ import annotations
 
 import json
+import socket
 import tempfile
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -14,10 +15,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
+import anyio
+import uvicorn
 from mcp import Client
 from mcp_types import ElicitResult
 
-from lashing.config import DEMO_SHIPPER, Approvals, Config, Grant
+from lashing.config import ACTIONS, DEMO_SHIPPER, Approvals, Config, Grant
 from lashing.server import build_server, demo
 from lashing.service import Lashing
 from lashing.sim import Simulator
@@ -53,6 +56,7 @@ class Session:
     tools: list[dict[str, Any]]
     instructions: str
     calls: list[Call] = field(default_factory=list)
+    http_url: str | None = None  # lashing over streamable HTTP, for agents that bring their own MCP client
 
     async def call(self, name: str, arguments: dict[str, Any]) -> tuple[str, bool]:
         result = await self.client.call_tool(name, arguments)
@@ -108,6 +112,8 @@ class AgentResult:
 
 class Agent(Protocol):
     name: str
+    approval_prompts: bool  # whether the agent's MCP client lets a (scripted) person answer approval prompts
+    needs_http: bool  # whether the agent connects to lashing itself, over HTTP
 
     async def run(self, session: Session, prompt: str, *, task: Task, today: str) -> AgentResult: ...
 
@@ -143,29 +149,73 @@ class Trial:
         }
 
 
+RUBBER_STAMP = Grant(id="rubber-stamp", actions=ACTIONS)
+"""What a person who approves everything amounts to, for clients that cannot show approval prompts."""
+
+
 @asynccontextmanager
-async def environment(task: Task, state_dir: Path) -> AsyncIterator[tuple[World, Session, Person | None]]:
+async def _served_over_http(service: Lashing) -> AsyncIterator[str]:
+    """lashing's MCP server on a free local port for the length of a trial; yields its URL."""
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    port = listener.getsockname()[1]
+    app = build_server(service).streamable_http_app()
+    server = uvicorn.Server(uvicorn.Config(app, log_level="warning", lifespan="on"))
+    async with anyio.create_task_group() as group:
+        group.start_soon(server.serve, [listener])
+        while not server.started:
+            await anyio.sleep(0.01)
+        try:
+            yield f"http://127.0.0.1:{port}/mcp"
+        finally:
+            server.should_exit = True
+
+
+@asynccontextmanager
+async def environment(
+    task: Task,
+    state_dir: Path,
+    *,
+    approval_prompts: bool = True,
+    http: bool = False,
+) -> AsyncIterator[tuple[World, Session, Person | None]]:
     sim = Simulator()
     facts = task.setup(sim)
+    grants, person_answer = task.grants, task.person
+    if not approval_prompts and person_answer is not None:
+        # The client cannot ask anyone. A person who approves everything is a grant for everything;
+        # a person who says no is no grant at all. The graders see the same outcomes either way.
+        grants = (*grants, RUBBER_STAMP) if person_answer == "approve" else grants
+        person_answer = None
     config = Config(
         endpoints=None,
         shipper=DEMO_SHIPPER,
-        grants=task.grants,
-        approvals=Approvals(client=True, operator=True),
+        grants=grants,
+        approvals=Approvals(client=approval_prompts, operator=True),
         state_dir=state_dir,
     )
     service, _ = demo(state_dir, sim=sim, config=config)
-    person = Person(task.person) if task.person else None
+    person = Person(person_answer) if person_answer else None
     async with Client(build_server(service), elicitation_callback=person) as client:
         listed = (await client.list_tools()).tools
         tools = [{"name": t.name, "description": t.description or "", "input_schema": t.input_schema} for t in listed]
         session = Session(client, tools, client.instructions or "")
-        yield World(sim, service, facts), session, person
+        if http:
+            async with _served_over_http(service) as url:
+                session.http_url = url
+                yield World(sim, service, facts), session, person
+        else:
+            yield World(sim, service, facts), session, person
 
 
 async def run_trial(task: Task, agent: Agent, trial: int) -> Trial:
     with tempfile.TemporaryDirectory(prefix="lashing-eval-") as tmp:
-        async with environment(task, Path(tmp)) as (world, session, person):
+        async with environment(
+            task,
+            Path(tmp),
+            approval_prompts=getattr(agent, "approval_prompts", True),
+            http=getattr(agent, "needs_http", False),
+        ) as (world, session, person):
             prompt = task.prompt(world.facts)
             result = await agent.run(session, prompt, task=task, today=world.sim.now.date().isoformat())
             checks = task.grade(world, session, result.final_text)

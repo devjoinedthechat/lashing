@@ -45,7 +45,7 @@ class Simulator:
         earliest = earliest or self.clock.now
         latest = latest or earliest + dt.timedelta(days=21)
         routes = self.world.routes(origin, destination, earliest, latest, max_transshipments)
-        bookable = [r for r in routes if r.cut_offs()["FCO"] > self.clock.now]
+        bookable = [r for r in routes if r.bookable(self.clock.now)]
         return [point_to_point(route, n) for n, route in enumerate(bookable, start=1)]
 
 

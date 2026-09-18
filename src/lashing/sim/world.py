@@ -251,6 +251,10 @@ class Route:
     def transit_days(self) -> int:
         return max(1, round((self.arrival - self.departure) / dt.timedelta(days=1)))
 
+    def bookable(self, now: dt.datetime) -> bool:
+        """Still bookable: its earliest cut-off (documentation, 48 hours before sailing) has not passed."""
+        return min(self.cut_offs().values()) > now
+
     def cut_offs(self) -> dict[str, dt.datetime]:
         """DCO documentation, FCO full-container delivery, VCO verified gross mass: before the first departure."""
         first = self.legs[0].voyage.calls[self.legs[0].load].planned_departure

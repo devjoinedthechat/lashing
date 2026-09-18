@@ -2,7 +2,11 @@
 
     uv run python -m evals.run --agent good          # scripted, free: every grader should pass it
     uv run python -m evals.run --agent bad           # scripted, free: every grader should fail it
-    uv run --group evals python -m evals.run --agent claude --model claude-opus-5 --trials 3 --max-usd 5 --yes
+    uv run python -m evals.run --agent claude --model claude-opus-5 --trials 3 --max-usd 5 --yes
+    uv run python -m evals.run --agent claude-code --model claude-opus-5 --trials 3 --max-usd 5 --yes
+
+`claude` calls the Messages API with an API key; `claude-code` runs Claude Code in print mode as the
+MCP client, with the login Claude Code already has.
 
 A model run spends money through your Anthropic credentials. It needs --yes, stops starting trials
 once --max-usd has been spent, and writes every trial (checks, cost, transcript) to --out.
@@ -21,7 +25,7 @@ from typing import Any
 
 import anyio
 
-from .agents import BAD, GOOD, ClaudeAgent, Scripted
+from .agents import BAD, GOOD, ClaudeAgent, ClaudeCodeAgent, Scripted, find_claude
 from .harness import Agent, Task, Trial, run_trial
 from .tasks import BY_ID, TASKS
 
@@ -65,6 +69,11 @@ def agent_for(args: argparse.Namespace) -> Agent:
         return Scripted("scripted-good", GOOD)
     if args.agent == "bad":
         return Scripted("scripted-bad", BAD)
+    if args.agent == "claude-code":
+        binary = args.claude or find_claude()
+        if binary is None:
+            raise SystemExit("no Claude Code found; pass --claude PATH")
+        return ClaudeCodeAgent([binary], args.model, max_turns=args.max_turns, budget_usd=min(2.0, args.max_usd))
     return ClaudeAgent(args.model, effort=args.effort, max_turns=args.max_turns)
 
 
@@ -126,7 +135,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m evals.run", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--agent", choices=["good", "bad", "claude"], default="good")
+    parser.add_argument("--agent", choices=["good", "bad", "claude", "claude-code"], default="good")
+    parser.add_argument("--claude", help="the Claude Code binary for --agent claude-code (found automatically)")
     parser.add_argument("--model", default="claude-opus-5")
     parser.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"])
     parser.add_argument("--tasks", default="all", help="comma-separated task ids, or all")
@@ -137,8 +147,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", default="evals/out")
     parser.add_argument("--yes", action="store_true", help="confirm a model run spends money")
     args = parser.parse_args(argv)
-    if args.agent == "claude" and not args.yes:
-        parser.error("a model run spends money through your Anthropic credentials; pass --yes to confirm")
+    if args.agent in ("claude", "claude-code") and not args.yes:
+        parser.error("a model run spends money or plan usage through your Anthropic login; pass --yes to confirm")
     return anyio.run(main_async, args)
 
 

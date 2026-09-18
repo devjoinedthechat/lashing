@@ -9,11 +9,18 @@ tools through the MCP client, one turn at a time.
 from __future__ import annotations
 
 import datetime as dt
+import json
+import os
 import re
-from collections.abc import Awaitable, Callable
+import shutil
+import tempfile
+from collections.abc import Awaitable, Callable, Iterator
+from pathlib import Path
 from typing import Any, cast
 
-from .harness import AgentResult, Session, Task
+import anyio
+
+from .harness import AgentResult, Call, Session, Task
 
 REFERENCE = re.compile(r"\b(LSIM\d{6}|cbrr-\d{5})\b")
 DAY = re.compile(r"\b(\d{1,2} [A-Z][a-z]+ \d{4})\b")
@@ -241,6 +248,9 @@ BAD: dict[str, Policy] = {
 
 
 class Scripted:
+    approval_prompts = True
+    needs_http = False
+
     def __init__(self, name: str, policies: dict[str, Policy]) -> None:
         self.name = name
         self.policies = policies
@@ -286,6 +296,9 @@ class ClaudeAgent:
     silent switch to another model would credit it with that model's answers. A refusal is recorded
     as its own outcome instead.
     """
+
+    approval_prompts = True
+    needs_http = False
 
     def __init__(self, model: str = "claude-opus-5", *, effort: str | None = None, max_turns: int = 30) -> None:
         if model not in PRICES:
@@ -340,3 +353,139 @@ class ClaudeAgent:
                 )
             messages.append({"role": "user", "content": results})
         return AgentResult(final, self.max_turns, cost(self.model, usage), usage, stopped)
+
+
+# -- Claude Code, headless -------------------------------------------------------------------------------
+
+# The parent Claude Code session's variables would make a child think it is nested inside it.
+_INHERITED = ("CLAUDE", "VSCODE", "MCP_", "ANTHROPIC_")
+
+
+def find_claude() -> str | None:
+    """The `claude` command, or the one bundled with the newest Claude Code VS Code extension."""
+    if found := shutil.which("claude"):
+        return found
+    bundled = sorted(Path.home().glob(".vscode/extensions/anthropic.claude-code-*/resources/native-binary/claude"))
+    return str(bundled[-1]) if bundled else None
+
+
+class ClaudeCodeAgent:
+    """Claude Code in print mode, as the MCP client: it connects to lashing over HTTP with its own login.
+
+    Only lashing's tools are available (`--tools ""` turns every built-in tool off), nothing is saved
+    to the user's session history, and the run is capped by `--max-budget-usd`. Tool calls are read
+    back from Claude Code's stream-json output so the graders see them exactly as the model made them.
+    """
+
+    approval_prompts = False  # a print-mode session has nobody to show an approval prompt to
+    needs_http = True
+
+    def __init__(
+        self,
+        command: list[str],
+        model: str = "claude-opus-5",
+        *,
+        max_turns: int = 30,
+        budget_usd: float = 2.0,
+        timeout_s: float = 900.0,
+    ) -> None:
+        self.command = command
+        self.model = model
+        self.max_turns = max_turns
+        self.budget_usd = budget_usd
+        self.timeout_s = timeout_s
+        self.name = f"claude-code:{model}"
+
+    def _arguments(self, prompt: str, config: Path, today: str) -> list[str]:
+        return [
+            *self.command,
+            "-p",
+            prompt,
+            "--model",
+            self.model,
+            "--mcp-config",
+            str(config),
+            "--strict-mcp-config",
+            "--tools",
+            "",
+            "--allowedTools",
+            "mcp__lashing",
+            "--permission-prompts",
+            "none",
+            "--max-turns",
+            str(self.max_turns),
+            "--max-budget-usd",
+            f"{self.budget_usd:.2f}",
+            "--append-system-prompt",
+            SYSTEM.format(today=today),
+            "--setting-sources",
+            "project",
+            "--no-session-persistence",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+        ]
+
+    async def run(self, session: Session, prompt: str, *, task: Task, today: str) -> AgentResult:
+        if session.http_url is None:
+            raise RuntimeError("ClaudeCodeAgent needs lashing served over HTTP")
+        env = {k: v for k, v in os.environ.items() if not k.startswith(_INHERITED)}
+        with tempfile.TemporaryDirectory(prefix="lashing-claude-code-") as cwd:
+            config = Path(cwd) / "mcp.json"
+            config.write_text(json.dumps({"mcpServers": {"lashing": {"type": "http", "url": session.http_url}}}))
+            with anyio.fail_after(self.timeout_s):
+                done = await anyio.run_process(self._arguments(prompt, config, today), cwd=cwd, env=env, check=False)
+        return self._read(done.stdout.decode(), done.stderr.decode(), session)
+
+    @staticmethod
+    def _events(stdout: str) -> Iterator[dict[str, Any]]:
+        for line in stdout.splitlines():
+            if line.strip().startswith("{"):
+                try:
+                    yield json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+    def _read(self, stdout: str, stderr: str, session: Session) -> AgentResult:
+        pending: dict[str, tuple[str, dict[str, Any]]] = {}
+        final: dict[str, Any] | None = None
+        for event in self._events(stdout):
+            kind = event.get("type")
+            if kind == "system" and event.get("subtype") == "init":
+                servers = {s.get("name"): s.get("status") for s in event.get("mcp_servers", [])}
+                if servers.get("lashing") != "connected":
+                    raise RuntimeError(f"Claude Code could not connect to lashing: {servers}")
+            for block in (event.get("message") or {}).get("content") or []:
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") == "tool_use":
+                    name = str(block.get("name", "")).removeprefix("mcp__lashing__")
+                    pending[block["id"]] = (name, dict(block.get("input") or {}))
+                elif block.get("type") == "tool_result" and block.get("tool_use_id") in pending:
+                    name, arguments = pending.pop(block["tool_use_id"])
+                    text = _text(block.get("content"))
+                    try:
+                        result: Any = json.loads(text)
+                    except json.JSONDecodeError:
+                        result = text
+                    session.calls.append(Call(name, arguments, result, bool(block.get("is_error"))))
+            if kind == "result":
+                final = event
+        if final is None:
+            raise RuntimeError(f"Claude Code ended without a result: {stderr.strip()[-500:] or stdout[-500:]}")
+        usage = {k: v for k, v in (final.get("usage") or {}).items() if isinstance(v, int)}
+        return AgentResult(
+            final_text=str(final.get("result") or ""),
+            turns=int(final.get("num_turns") or 0),
+            cost_usd=float(final.get("total_cost_usd") or 0.0),
+            usage=usage,
+            stopped=str(final.get("subtype") or "unknown"),
+        )
+
+
+def _text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(str(part.get("text", "")) for part in content if isinstance(part, dict))
+    return ""

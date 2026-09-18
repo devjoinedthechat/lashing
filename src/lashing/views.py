@@ -8,6 +8,7 @@ cleaned and truncated, with a standing notice that it is data rather than instru
 
 from __future__ import annotations
 
+import datetime as dt
 import re
 from collections.abc import Iterable
 from typing import Any
@@ -131,7 +132,26 @@ def _unrecognised(payload: dict[str, Any], problem: str) -> dict[str, Any]:
     }
 
 
-def booking(payload: dict[str, Any], amended: dict[str, Any] | None = None) -> dict[str, Any]:
+def _passed(cut_offs: dict[str, str], now: dt.datetime | None) -> list[str]:
+    """The cut-offs already behind us: an agent must not offer a sailing it can no longer make."""
+    if now is None:
+        return []
+    passed = []
+    for label, when in cut_offs.items():
+        try:
+            moment = dt.datetime.fromisoformat(str(when).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if moment.tzinfo is not None and moment <= now:
+            passed.append(label)
+    return passed
+
+
+def booking(
+    payload: dict[str, Any],
+    amended: dict[str, Any] | None = None,
+    now: dt.datetime | None = None,
+) -> dict[str, Any]:
     try:
         state = BookingState.from_payload(payload)
     except LifecycleError as error:
@@ -172,6 +192,8 @@ def booking(payload: dict[str, Any], amended: dict[str, Any] | None = None) -> d
         view["cut_offs"] = {
             CUT_OFF_NAMES.get(c["cutOffDateTimeCode"], c["cutOffDateTimeCode"]): c["cutOffDateTime"] for c in cut_offs
         }
+        if passed := _passed(view["cut_offs"], now):
+            view["cut_offs_passed"] = passed
     if amended is not None:
         view["pending_amendment"] = {
             "equipment": equipment(amended.get("requestedEquipments", [])),
@@ -197,7 +219,7 @@ def _place(place: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def sailing(route: dict[str, Any]) -> dict[str, Any]:
+def sailing(route: dict[str, Any], now: dt.datetime | None = None) -> dict[str, Any]:
     legs = []
     for leg in route.get("legs", []):
         transport = leg.get("transport", {})
@@ -211,7 +233,11 @@ def sailing(route: dict[str, Any]) -> dict[str, Any]:
                 "arrives": _place(leg["arrival"]),
             },
         )
-    return {
+    cut_offs = {
+        CUT_OFF_NAMES.get(c["cutOffDateTimeCode"], c["cutOffDateTimeCode"]): c["cutOffDateTime"]
+        for c in route.get("cutOffTimes", [])
+    }
+    view: dict[str, Any] = {
         "option": route.get("solutionNumber"),
         "routing_reference": route.get("routingReference"),
         "departs": _place(route["placeOfReceipt"]),
@@ -219,16 +245,15 @@ def sailing(route: dict[str, Any]) -> dict[str, Any]:
         "transit_days": route.get("transitTime"),
         "transshipments": max(0, len(legs) - 1),
         "legs": legs,
-        "cut_offs": {
-            CUT_OFF_NAMES.get(c["cutOffDateTimeCode"], c["cutOffDateTimeCode"]): c["cutOffDateTime"]
-            for c in route.get("cutOffTimes", [])
-        },
+        "cut_offs": cut_offs,
     }
+    if passed := _passed(cut_offs, now):
+        view["cut_offs_passed"] = passed
+        view["warning"] = "A cut-off for this sailing has already passed; the cargo may not make it."
+    return view
 
 
 def _hours_between(later: str, earlier: str) -> float:
-    import datetime as dt  # noqa: PLC0415
-
     delta = dt.datetime.fromisoformat(later.replace("Z", "+00:00")) - dt.datetime.fromisoformat(
         earlier.replace("Z", "+00:00"),
     )

@@ -462,7 +462,7 @@ class Desk:
         candidates = [
             r
             for r in self.world.routes(origin, destination, earliest, earliest + SEARCH_WINDOW)
-            if r.cut_offs()["FCO"] > self.clock.now
+            if r.bookable(self.clock.now)
         ]
         if not candidates:
             message = f"No sailing from {origin} to {destination} within three weeks of the requested date."

@@ -16,7 +16,7 @@
 <p align="center">
   <a href="https://github.com/devjoinedthechat/lashing/actions/workflows/ci.yml"><img src="https://github.com/devjoinedthechat/lashing/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.13%20%7C%203.14-blue" alt="Python 3.13 | 3.14">
-  <img src="https://img.shields.io/badge/tests-231-brightgreen" alt="231 tests">
+  <img src="https://img.shields.io/badge/tests-235-brightgreen" alt="235 tests">
   <img src="https://img.shields.io/badge/DCSA%20Conformance%20Framework-conformant-2e7d32" alt="DCSA Conformance Framework: conformant">
   <img src="https://img.shields.io/badge/DCSA-Booking%202.0.5%20%C2%B7%20T%26T%203.0.0%20%C2%B7%20Schedules%201.0.4-0e4a6e" alt="DCSA Booking 2.0.5, Track & Trace 3.0.0, Commercial Schedules 1.0.4">
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0">
@@ -197,6 +197,7 @@ hostile. [tests/test_safety.py](tests/test_safety.py) attacks each defence direc
 | The six safety invariants | 30 attack tests, including a fully fooled agent and two processes racing to apply one plan |
 | The MCP surface | End-to-end flows through a real MCP client, and `lashing demo` started as a subprocess over stdio |
 | The eval graders | Scripted agents: a correct one passes all 8 tasks and one that makes each task's target mistake fails all 8 |
+| Agent behaviour | Claude Opus 5, through Claude Code as the MCP client, passes all 24 eval trials; the [transcripts](evals/results/) are committed |
 
 The checks caught real mistakes while this was being built:
 - DCSA's Conformance Framework found that lashing's update and amendment bodies left out the booking
@@ -226,16 +227,24 @@ account of what it did.
 | `refuse-impossible-change` | Explains that a cancelled booking cannot be moved, instead of booking a new one |
 
 ```sh
-uv run python -m evals.run --agent good     # scripted and free: every grader should pass
-uv run python -m evals.run --agent bad      # scripted and free: every grader should fail
+uv run python -m evals.run --agent good          # scripted and free: every grader should pass
+uv run python -m evals.run --agent bad           # scripted and free: every grader should fail
+uv run python -m evals.run --agent claude-code --model claude-opus-5 --trials 3 --max-usd 5 --yes
 uv run python -m evals.run --agent claude --model claude-opus-5 --trials 3 --max-usd 5 --yes
 ```
 
-A model run spends money through your Anthropic credentials. It needs `--yes`, stops starting
-trials at `--max-usd`, and reports each task's pass rate and pass^k (whether every trial passed)
-with a Wilson 95% interval. Every trial is written out with its checks, cost and full transcript.
-Server-side refusal fallbacks are left off on purpose: an eval must measure the model it names.
-No model results are published yet.
+`claude-code` runs Claude Code in print mode as the MCP client, using the login it already has.
+`claude` calls the Messages API with an API key. Both need `--yes` and stop starting trials at
+`--max-usd`. Each task's pass rate and pass^k (whether every trial passed) is reported with a
+Wilson 95% interval, and every trial is written out with its checks, cost and full transcript.
+
+**Results, 2026-09-18:** Claude Opus 5 through Claude Code passed all 24 trials (8 tasks, 3 each).
+The 95% interval is 86% to 100%, and the estimated cost was $2.05. The model never acted on the
+planted instruction, reported waiting approvals plainly, and refused the impossible change. The
+run also caught a real gap: an agent noticed a sailing whose documentation cut-off had already
+passed, and lashing now flags that. The details and full transcripts are in
+[evals/results/](evals/results/2026-09-18-claude-code-opus-5.md). The tasks are within this
+model's reach; harder tasks and cheaper models are next.
 
 ## The simulated carrier
 
@@ -317,7 +326,7 @@ DCSA-OpenAPI's main branch still carries the 3.0.0 beta.
 
 ```sh
 uv sync
-uv run pytest                       # 231 tests, a few seconds
+uv run pytest                       # 235 tests, a few seconds
 uv run ruff check . && uv run mypy  # strict
 ```
 

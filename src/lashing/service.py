@@ -201,7 +201,8 @@ class Lashing:
             departure_until=depart_until,
             max_transshipments=max_transshipments,
         )
-        shown = [views.sailing(r) for r in routes[:limit]]
+        now = self.clock()
+        shown = [views.sailing(r, now) for r in routes[:limit]]
         result: dict[str, Any] = {
             "sailings": shown,
             "how_to_book": "Pass a sailing's routing_reference to propose_booking or propose_change.",
@@ -237,7 +238,7 @@ class Lashing:
                 amended = await self.carrier.get_booking(state.booking_reference, amended=True)
             except NotFound:
                 amended = None
-        view = views.booking(current, amended)
+        view = views.booking(current, amended, self.clock())
         open_plans = [
             s.plan.view()
             for s in self.plans.open(self.clock())
@@ -595,7 +596,7 @@ class Lashing:
     async def _applied(self, plan: Plan, reference: str, authorized_by: str) -> Outcome:
         """The write is recorded; reading the booking back is a courtesy that must not undo that."""
         try:
-            after = views.booking(await self.carrier.get_booking(reference))
+            after = views.booking(await self.carrier.get_booking(reference), now=self.clock())
         except Exception:
             log.info("could not read booking %s back after applying %s", reference, plan.id, exc_info=True)
             after = None

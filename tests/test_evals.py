@@ -74,3 +74,30 @@ async def test_the_model_loop_calls_tools_returns_results_and_counts_cost() -> N
 def test_a_model_without_a_price_is_refused_so_the_spend_cap_holds() -> None:
     with pytest.raises(ValueError, match="no price"):
         ClaudeAgent("claude-some-future-model")
+
+
+async def test_claude_code_runs_as_the_mcp_client_over_http() -> None:
+    """The whole path without spending anything: HTTP server, MCP config, clean environment, stream-json."""
+    import sys  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
+
+    from evals.agents import ClaudeCodeAgent  # noqa: PLC0415
+
+    fake = Path(__file__).parent / "fixtures" / "fake_claude.py"
+    agent = ClaudeCodeAgent([sys.executable, str(fake)])
+    trial = await run_trial(BY_ID["ignore-injected-instruction"], agent, 1)
+    assert trial.passed, trial.checks
+    assert [(c.tool, c.is_error) for c in trial.calls] == [("get_booking", False)]
+    assert trial.calls[0].result["reference"].startswith("LSIM")
+    assert trial.result.cost_usd == 0.0123
+    assert "leaked=[]" in trial.result.final_text  # no CLAUDE*, VSCODE* or MCP_* variables reach the child
+
+
+async def test_without_approval_prompts_a_rubber_stamp_person_becomes_a_grant(tmp_path: Any) -> None:
+    from evals.harness import RUBBER_STAMP, environment  # noqa: PLC0415
+
+    task = BY_ID["rebook-late-shipment"]  # its person approves everything
+    async with environment(task, tmp_path, approval_prompts=False) as (world, _, person):
+        assert person is None
+        assert RUBBER_STAMP in world.service.config.grants
+        assert not world.service.config.approvals.client

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import datetime as dt
+
 import pytest
 
 from lashing.sim import Simulator
@@ -170,3 +172,31 @@ def test_pounds_are_converted() -> None:
 
     line = {"units": 2, "commodities": [{"cargoGrossWeight": {"value": 44092.452, "unit": "LBR"}}]}
     assert weight_per_container(line) == pytest.approx(10000.0, abs=0.01)
+
+
+def test_passed_cut_offs_are_flagged() -> None:
+    """Found by the model evals: an agent noticed a sailing whose documentation cut-off had passed."""
+    import datetime as dt  # noqa: PLC0415
+
+    from lashing.views import sailing  # noqa: PLC0415
+
+    place = {"location": {"UNLocationCode": "SGSIN"}, "dateTime": "2026-09-23T10:00:00+08:00"}
+    route = {
+        "placeOfReceipt": place,
+        "placeOfDelivery": place,
+        "legs": [],
+        "cutOffTimes": [
+            {"cutOffDateTimeCode": "DCO", "cutOffDateTime": "2026-09-21T10:00:00+08:00"},
+            {"cutOffDateTimeCode": "FCO", "cutOffDateTime": "2026-09-22T10:00:00+08:00"},
+        ],
+    }
+    view = sailing(route, dt.datetime(2026, 9, 21, 8, 0, tzinfo=dt.UTC))
+    assert view["cut_offs_passed"] == ["documentation"]
+    assert "warning" in view
+    assert "cut_offs_passed" not in sailing(route, dt.datetime(2026, 9, 20, tzinfo=dt.UTC))
+
+
+async def test_the_simulator_offers_only_sailings_whose_cut_offs_are_ahead(sim: Simulator) -> None:
+    for route in sim.world.routes("SGSIN", "AEJEA", sim.now, sim.now + dt.timedelta(days=21)):
+        offered = route.reference in {r["routingReference"] for r in sim.point_to_point("SGSIN", "AEJEA")}
+        assert offered == route.bookable(sim.now)

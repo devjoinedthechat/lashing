@@ -78,9 +78,7 @@ def _day(text: str) -> str:
 
 def _book_setup(sim: Simulator) -> dict[str, Any]:
     routes = [
-        r
-        for r in sim.world.routes("CNSHA", "NLRTM", sim.now, sim.now + dt.timedelta(days=21))
-        if r.cut_offs()["FCO"] > sim.now
+        r for r in sim.world.routes("CNSHA", "NLRTM", sim.now, sim.now + dt.timedelta(days=21)) if r.bookable(sim.now)
     ]
     deadline = min(r.arrival for r in routes).date()
     if all(r.arrival.date() <= deadline for r in routes):
@@ -164,7 +162,7 @@ def _delay_setup(hours: int) -> Any:
         faster = [
             r
             for r in sim.world.routes("CNSHA", "NLRTM", sim.now, sim.now + dt.timedelta(days=21))
-            if r.cut_offs()["FCO"] > sim.now and r.arrival.date() <= deadline and voyage.id not in r.reference
+            if r.bookable(sim.now) and r.arrival.date() <= deadline and voyage.id not in r.reference
         ]
         late = booking.route.arrival.date() > deadline
         if late and not faster:
