@@ -126,19 +126,23 @@ class Tracker:
             events.append(event)
         return events
 
-    def _milestone(
+    def _milestones(
         self,
         planned: dt.datetime,
         estimated: dt.datetime,
         confirmed_at: dt.datetime,
         delay_known_at: dt.datetime | None,
-    ) -> tuple[str, dt.datetime, dt.datetime]:
-        """Classifier, event time and update time for one planned milestone as of now."""
-        if self.now >= estimated:
-            return "ACTUAL", estimated, estimated
+    ) -> list[tuple[str, dt.datetime, dt.datetime]]:
+        """The (classifier, event time, update time) a feed has published for one milestone by now.
+
+        A feed accumulates: the planned event stays when an estimate or the actual follows it.
+        """
+        published = [("PLANNED", planned, confirmed_at)]
         if estimated != planned:
-            return "ESTIMATED", estimated, max(confirmed_at, delay_known_at or confirmed_at)
-        return "PLANNED", planned, confirmed_at
+            published.append(("ESTIMATED", estimated, max(confirmed_at, delay_known_at or confirmed_at)))
+        if self.now >= estimated:
+            published.append(("ACTUAL", estimated, estimated))
+        return published
 
     def _confirmed_at(self, booking: SimBooking) -> dt.datetime:
         times = [r.at for r in booking.history if r.status in ("CONFIRMED", "AMENDMENT_CONFIRMED")]
@@ -155,24 +159,25 @@ class Tracker:
                 call = voyage.calls[index]
                 planned = call.planned_departure if kind == "DEPARTED" else call.planned_arrival
                 estimated = voyage.estimated_departure(index) if kind == "DEPARTED" else voyage.estimated_arrival(index)
-                classifier, when, updated = self._milestone(planned, estimated, confirmed_at, voyage.delay_known_at)
-                event: dict[str, Any] = {
-                    "eventID": _event_id(voyage.id, index, kind, classifier),
-                    "eventRouting": _routing(),
-                    "eventDateTime": iso(when),
-                    "eventUpdatedDateTime": iso(min(updated, self.now)),
-                    "eventLocation": _port_location(call.port),
-                    "eventClassification": {
-                        "eventType": "TRANSPORT",
-                        "eventClassifier": classifier,
-                        "transportEventType": kind,
-                    },
-                    "transportDetails": {"transportCall": _transport_call(leg, index)},
-                    "shipmentDetails": {"documentReference": self._document(booking)},
-                }
-                if voyage.delay_at(index) and voyage.delay_reason:
-                    event["reason"] = voyage.delay_reason
-                events.append(event)
+                published = self._milestones(planned, estimated, confirmed_at, voyage.delay_known_at)
+                for classifier, when, updated in published:
+                    event: dict[str, Any] = {
+                        "eventID": _event_id(voyage.id, index, kind, classifier),
+                        "eventRouting": _routing(),
+                        "eventDateTime": iso(when),
+                        "eventUpdatedDateTime": iso(min(updated, self.now)),
+                        "eventLocation": _port_location(call.port),
+                        "eventClassification": {
+                            "eventType": "TRANSPORT",
+                            "eventClassifier": classifier,
+                            "transportEventType": kind,
+                        },
+                        "transportDetails": {"transportCall": _transport_call(leg, index)},
+                        "shipmentDetails": {"documentReference": self._document(booking)},
+                    }
+                    if classifier != "PLANNED" and voyage.delay_at(index) and voyage.delay_reason:
+                        event["reason"] = voyage.delay_reason
+                    events.append(event)
         return events
 
     def _equipment_events(self, booking: SimBooking, only: str | None) -> list[dict[str, Any]]:

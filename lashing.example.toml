@@ -1,0 +1,59 @@
+# lashing configuration. Everything that decides what an agent may do lives in this file,
+# which none of lashing's tools can write.
+
+# Where the ledger (every plan, approval and write) is kept, relative to this file.
+state_dir = ".lashing"
+
+# How long a proposed plan stays valid.
+plan_ttl_minutes = 30
+
+[carrier]
+# Either one base URL with the simulator's layout (/bkg, /cs, /tnt/v3)...
+base_url = "http://127.0.0.1:8401"
+# ...or one URL per API, for a real carrier:
+# booking_url = "https://api.carrier.example/booking"
+# schedules_url = "https://api.carrier.example/schedules"
+# tracking_url = "https://api.carrier.example/tnt/v3"
+
+# Credentials come from the environment, never from this file.
+# auth_env = "LASHING_CARRIER_TOKEN"
+# auth_header = "Authorization"
+# auth_prefix = "Bearer "
+
+# What to do when the carrier's responses drift from the DCSA standard:
+# strict refuses them, warn logs them, off ignores them.
+validation = "warn"
+
+[shipper]
+# The parties on every booking. The agent never supplies these.
+booking_agent = "Nordic Forwarding ApS"
+shipper = "Nordic Furniture A/S"
+contact_name = "Operations desk"
+contact_email = "operations@forwarding.example"
+# contact_phone = "+45 70 00 00 00"
+service_contract = "SC-2026-0042"
+freight_payment = "PRE"
+
+[approvals]
+# Accept a yes from the MCP client's approval prompt. Only turn this on for clients that show
+# the prompt to a person (an agent-driven client could answer it itself).
+client = true
+# Accept `lashing approve <plan>` run in a terminal.
+operator = true
+
+# Grants let the agent apply some writes without asking anyone. Everything not covered by a
+# grant needs a person's approval. Patterns use shell-style wildcards.
+
+[[grant]]
+id = "rebook-to-another-sailing"
+actions = ["amend"]
+bookings = ["*"]
+fields = ["routingReference", "expectedDepartureDate"]
+note = "Moving a confirmed booking to another sailing is routine."
+
+[[grant]]
+id = "small-asia-europe-bookings"
+actions = ["create"]
+lanes = ["CN*-NL*", "CN*-DE*", "CN*-BE*"]
+max_units = 4
+expires = 2026-12-31

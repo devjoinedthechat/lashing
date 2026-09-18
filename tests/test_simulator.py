@@ -236,9 +236,14 @@ async def test_tracking_follows_the_clock_and_reports_delays(http: httpx.AsyncCl
     assert [e["eventClassification"]["eventClassifier"] for e in arrival] == ["PLANNED"]
 
     sim.delay(voyage.id, "SGSIN", hours=96, reason="Port congestion at Singapore")
-    late = [e for e in await events() if e["eventClassification"].get("transportEventType") == "ARRIVED"]
-    assert late[0]["eventClassification"]["eventClassifier"] == "ESTIMATED"
-    assert late[0]["reason"] == "Port congestion at Singapore"
+    late = {
+        e["eventClassification"]["eventClassifier"]: e
+        for e in await events()
+        if e["eventClassification"].get("transportEventType") == "ARRIVED"
+    }
+    assert set(late) == {"PLANNED", "ESTIMATED"}  # the feed keeps the plan alongside the estimate
+    assert late["ESTIMATED"]["reason"] == "Port congestion at Singapore"
+    assert "reason" not in late["PLANNED"]
 
     sim.advance(days=60)
     kinds = {e["eventClassification"].get("equipmentEventType") for e in await events()}

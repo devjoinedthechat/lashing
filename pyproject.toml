@@ -59,12 +59,13 @@ target-version = "py313"
 select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "PL", "TRY", "C4", "PT", "RET", "ARG"]
 ignore = [
     "PLR0913",  # tool functions mirror the arguments an agent passes
+    "PLR0917",  # same, positionally
     "PLR2004",  # magic values read fine in domain rules (e.g. 7-digit IMO numbers)
     "TRY003",   # messages go to agents and operators; long ones are the point
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "PLR2004", "ARG001", "PLR0917"]
+"tests/**" = ["S101", "PLR2004", "ARG001", "ARG002", "ARG005", "PT018"]
 "evals/**" = ["S101"]
 
 [tool.mypy]
