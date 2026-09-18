@@ -16,7 +16,7 @@
 <p align="center">
   <a href="https://github.com/devjoinedthechat/lashing/actions/workflows/ci.yml"><img src="https://github.com/devjoinedthechat/lashing/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.13%20%7C%203.14-blue" alt="Python 3.13 | 3.14">
-  <img src="https://img.shields.io/badge/tests-237-brightgreen" alt="237 tests">
+  <img src="https://img.shields.io/badge/tests-252-brightgreen" alt="252 tests">
   <img src="https://img.shields.io/badge/DCSA%20Conformance%20Framework-conformant-2e7d32" alt="DCSA Conformance Framework: conformant">
   <img src="https://img.shields.io/badge/DCSA-Booking%202.0.5%20%C2%B7%20T%26T%203.0.0%20%C2%B7%20Schedules%201.0.4-0e4a6e" alt="DCSA Booking 2.0.5, Track & Trace 3.0.0, Commercial Schedules 1.0.4">
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0">
@@ -233,10 +233,18 @@ uv run python -m evals.run --agent claude-code --model claude-opus-5 --trials 3 
 uv run python -m evals.run --agent claude --model claude-opus-5 --trials 3 --max-usd 5 --yes
 ```
 
-`claude-code` runs Claude Code in print mode as the MCP client.
-`claude` calls the Messages API with an API key. Both need `--yes` and stop starting trials at
-`--max-usd`. Each task's pass rate and pass^k (whether every trial passed) is reported with a
-Wilson 95% interval, and every trial is written out with its checks, cost and full transcript.
+`claude-code` runs Claude Code in print mode as the MCP client. `claude` calls the Messages API
+with an API key. Both need `--yes` and stop starting trials at `--max-usd`.
+
+Each run writes to a directory of its own:
+- `trials.jsonl`: every trial, with its checks, cost and full transcript;
+- `summary.txt`: each task's pass rate and pass^k (whether every trial passed), with a Wilson 95%
+  interval;
+- `run.json`: the commit that was measured, the settings and the totals.
+
+A trial that cannot be graded, such as one hit by an API error or a timeout, is reported as an
+error rather than a pass or a fail. What it spent still counts against `--max-usd`, and the run
+exits 1.
 
 **Results, 2026-09-18,** all through Claude Code, three trials of each task:
 
@@ -341,7 +349,7 @@ DCSA-OpenAPI's main branch still carries the 3.0.0 beta.
 
 ```sh
 uv sync
-uv run pytest                       # 237 tests, a few seconds
+uv run pytest                       # 252 tests, a few seconds
 uv run ruff check . && uv run mypy  # strict
 ```
 

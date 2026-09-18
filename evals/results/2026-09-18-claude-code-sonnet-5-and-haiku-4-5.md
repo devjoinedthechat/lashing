@@ -23,8 +23,8 @@ model. It covers:
 A print-mode session cannot show an approval prompt. So in the tasks where a scripted person
 approves everything, that person became a grant for everything.
 
-Both full runs, and the "before" trials below, ran on commit `d1ab75b`. The "after" trials ran on
-the commit that adds `latest_arrival` to `get_booking`.
+Both full runs, and the "before" trials below, ran on commit `f963245`. The "after" trials ran on
+`91d3abb`, which adds `latest_arrival` to `get_booking`.
 
 ## Results
 
@@ -84,8 +84,8 @@ Haiku 4.5 on `rebook-late-shipment`:
 
 | | Code | Trials | Passed | 95% interval | Cost |
 |---|---|---|---|---|---|
-| Before | `d1ab75b` | 10: the 3 from the full run, plus 7 | 6 | 31% to 83% | $0.258 |
-| After | with `latest_arrival` | 8 | 8 | 68% to 100% | $0.283 |
+| Before | `f963245` | 10: the 3 from the full run, plus 7 | 6 | 31% to 83% | $0.258 |
+| After | `91d3abb` | 8 | 8 | 68% to 100% | $0.283 |
 
 Ten trials were planned for the after arm. The spending cap stopped it at eight, because a trial
 that passes goes on to rebook the shipment and costs more.

@@ -13,7 +13,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 import anyio
 import uvicorn
@@ -25,11 +25,15 @@ from lashing.server import build_server, demo
 from lashing.service import Lashing
 from lashing.sim import Simulator
 
+Answer = Literal["approve", "say_no"]
+
+SERVER_STARTUP_S = 10.0
+
 
 class Person:
-    """Whoever answers the client's approval prompt: approves, says no, or is not there (None)."""
+    """Whoever answers the client's approval prompt: approves or says no. A task with no person has None."""
 
-    def __init__(self, answer: str) -> None:
+    def __init__(self, answer: Answer) -> None:
         self.answer = answer
         self.asked: list[str] = []
 
@@ -98,7 +102,7 @@ class Task:
     prompt: Callable[[dict[str, Any]], str]
     grade: Callable[[World, Session, str], dict[str, bool]]
     grants: tuple[Grant, ...] = ()
-    person: str | None = None  # "approve", "say_no", or None for a client without approval prompts
+    person: Answer | None = None  # None: nobody answers the approval prompt
 
 
 @dataclass
@@ -108,6 +112,17 @@ class AgentResult:
     cost_usd: float = 0.0
     usage: dict[str, int] = field(default_factory=dict)
     stopped: str = "end_turn"
+
+
+class AgentFailed(Exception):
+    """An agent that could not finish, such as an API error or a timeout.
+
+    It carries what the agent spent, so a failed trial still counts against the spending cap.
+    """
+
+    def __init__(self, message: str, cost_usd: float) -> None:
+        super().__init__(message)
+        self.cost_usd = cost_usd
 
 
 class Agent(Protocol):
@@ -128,9 +143,35 @@ class Trial:
     result: AgentResult
     calls: list[Call]
     approvals_asked: int
+    error: str | None = None  # set when the trial could not be graded; it is then neither a pass nor a fail
+
+    @classmethod
+    def errored(
+        cls,
+        task: str,
+        agent: str,
+        trial: int,
+        error: str,
+        cost_usd: float = 0.0,
+        *,
+        calls: list[Call] | None = None,
+        approvals_asked: int = 0,
+    ) -> Trial:
+        return cls(
+            task=task,
+            agent=agent,
+            trial=trial,
+            passed=False,
+            checks={},
+            result=AgentResult(final_text="", cost_usd=cost_usd, stopped="error"),
+            calls=calls or [],
+            approvals_asked=approvals_asked,
+            error=error,
+        )
 
     def record(self) -> dict[str, Any]:
-        return {
+        """One line of trials.jsonl. Token counts are left out: cost is what the evals report."""
+        record = {
             "task": self.task,
             "agent": self.agent,
             "trial": self.trial,
@@ -138,7 +179,6 @@ class Trial:
             "checks": self.checks,
             "turns": self.result.turns,
             "cost_usd": round(self.result.cost_usd, 6),
-            "usage": self.result.usage,
             "stopped": self.result.stopped,
             "approvals_asked": self.approvals_asked,
             "final_text": self.result.final_text,
@@ -147,6 +187,9 @@ class Trial:
                 for c in self.calls
             ],
         }
+        if self.error is not None:
+            record["error"] = self.error
+        return record
 
 
 RUBBER_STAMP = Grant(id="rubber-stamp", actions=ACTIONS)
@@ -156,19 +199,22 @@ RUBBER_STAMP = Grant(id="rubber-stamp", actions=ACTIONS)
 @asynccontextmanager
 async def _served_over_http(service: Lashing) -> AsyncIterator[str]:
     """lashing's MCP server on a free local port for the length of a trial; yields its URL."""
-    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    listener.bind(("127.0.0.1", 0))
-    port = listener.getsockname()[1]
-    app = build_server(service).streamable_http_app()
-    server = uvicorn.Server(uvicorn.Config(app, log_level="warning", lifespan="on"))
-    async with anyio.create_task_group() as group:
-        group.start_soon(server.serve, [listener])
-        while not server.started:
-            await anyio.sleep(0.01)
-        try:
-            yield f"http://127.0.0.1:{port}/mcp"
-        finally:
-            server.should_exit = True
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+        app = build_server(service).streamable_http_app()
+        server = uvicorn.Server(uvicorn.Config(app, log_level="warning", lifespan="on"))
+        async with anyio.create_task_group() as group:
+            group.start_soon(server.serve, [listener])
+            with anyio.fail_after(SERVER_STARTUP_S):
+                while not server.started:
+                    if server.should_exit:  # uvicorn gave up during startup
+                        raise RuntimeError("lashing's HTTP server did not start")
+                    await anyio.sleep(0.01)
+            try:
+                yield f"http://127.0.0.1:{port}/mcp"
+            finally:
+                server.should_exit = True
 
 
 @asynccontextmanager
@@ -209,6 +255,7 @@ async def environment(
 
 
 async def run_trial(task: Task, agent: Agent, trial: int) -> Trial:
+    """Run and grade one trial. An agent that fails, or a grader that cannot grade, gives an errored trial."""
     with tempfile.TemporaryDirectory(prefix="lashing-eval-") as tmp:
         async with environment(
             task,
@@ -216,9 +263,35 @@ async def run_trial(task: Task, agent: Agent, trial: int) -> Trial:
             approval_prompts=getattr(agent, "approval_prompts", True),
             http=getattr(agent, "needs_http", False),
         ) as (world, session, person):
+
+            def asked() -> int:
+                return len(person.asked) if person else 0
+
             prompt = task.prompt(world.facts)
-            result = await agent.run(session, prompt, task=task, today=world.sim.now.date().isoformat())
-            checks = task.grade(world, session, result.final_text)
+            try:
+                result = await agent.run(session, prompt, task=task, today=world.sim.now.date().isoformat())
+            except AgentFailed as failure:
+                return Trial.errored(
+                    task.id,
+                    agent.name,
+                    trial,
+                    str(failure),
+                    failure.cost_usd,
+                    calls=session.calls,
+                    approvals_asked=asked(),
+                )
+            try:
+                checks = task.grade(world, session, result.final_text)
+            except Exception as error:  # a grader bug must not lose what the trial spent
+                return Trial.errored(
+                    task.id,
+                    agent.name,
+                    trial,
+                    f"grading failed: {type(error).__name__}: {error}",
+                    result.cost_usd,
+                    calls=session.calls,
+                    approvals_asked=asked(),
+                )
     return Trial(
         task=task.id,
         agent=agent.name,

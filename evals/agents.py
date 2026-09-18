@@ -20,7 +20,7 @@ from typing import Any, cast
 
 import anyio
 
-from .harness import AgentResult, Call, Session, Task
+from .harness import AgentFailed, AgentResult, Call, Session, Task
 
 REFERENCE = re.compile(r"\b(LSIM\d{6}|cbrr-\d{5})\b")
 DAY = re.compile(r"\b(\d{1,2} [A-Z][a-z]+ \d{4})\b")
@@ -315,9 +315,15 @@ class ClaudeAgent:
         self.client = anthropic.AsyncAnthropic(max_retries=5)
 
     async def run(self, session: Session, prompt: str, *, task: Task, today: str) -> AgentResult:
+        usage: dict[str, int] = {}
+        try:
+            return await self._loop(session, prompt, today, usage)
+        except Exception as error:  # the SDK has already retried; report the failure with what it spent
+            raise AgentFailed(f"{type(error).__name__}: {error}", cost(self.model, usage)) from error
+
+    async def _loop(self, session: Session, prompt: str, today: str, usage: dict[str, int]) -> AgentResult:
         system = SYSTEM.format(today=today) + "\n" + session.instructions
         messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
-        usage: dict[str, int] = {}
         final, stopped = "", "max_turns"
         for turn in range(1, self.max_turns + 1):
             response = await self.client.messages.create(
@@ -357,7 +363,8 @@ class ClaudeAgent:
 
 # -- Claude Code, headless -------------------------------------------------------------------------------
 
-# The parent Claude Code session's variables would make a child think it is nested inside it.
+# Left out of the child's environment: a parent Claude Code session's variables would make the child
+# think it is nested inside it, and ANTHROPIC_* would point it at a key or endpoint meant for the parent.
 _INHERITED = ("CLAUDE", "VSCODE", "MCP_", "ANTHROPIC_")
 
 
@@ -433,9 +440,15 @@ class ClaudeCodeAgent:
         with tempfile.TemporaryDirectory(prefix="lashing-claude-code-") as cwd:
             config = Path(cwd) / "mcp.json"
             config.write_text(json.dumps({"mcpServers": {"lashing": {"type": "http", "url": session.http_url}}}))
-            with anyio.fail_after(self.timeout_s):
-                done = await anyio.run_process(self._arguments(prompt, config, today), cwd=cwd, env=env, check=False)
-        return self._read(done.stdout.decode(), done.stderr.decode(), session)
+            try:
+                with anyio.fail_after(self.timeout_s):
+                    done = await anyio.run_process(
+                        self._arguments(prompt, config, today), cwd=cwd, env=env, check=False
+                    )
+            except TimeoutError:
+                # The process is killed without reporting its cost, so charge the most it was allowed.
+                raise AgentFailed(f"Claude Code did not finish in {self.timeout_s:.0f}s", self.budget_usd) from None
+        return self._read(done.stdout.decode(errors="replace"), done.stderr.decode(errors="replace"), session)
 
     @staticmethod
     def _events(stdout: str) -> Iterator[dict[str, Any]]:
@@ -449,12 +462,13 @@ class ClaudeCodeAgent:
     def _read(self, stdout: str, stderr: str, session: Session) -> AgentResult:
         pending: dict[str, tuple[str, dict[str, Any]]] = {}
         final: dict[str, Any] | None = None
+        unreachable: dict[Any, Any] | None = None
         for event in self._events(stdout):
             kind = event.get("type")
             if kind == "system" and event.get("subtype") == "init":
                 servers = {s.get("name"): s.get("status") for s in event.get("mcp_servers", [])}
                 if servers.get("lashing") != "connected":
-                    raise RuntimeError(f"Claude Code could not connect to lashing: {servers}")
+                    unreachable = servers
             for block in (event.get("message") or {}).get("content") or []:
                 if not isinstance(block, dict):
                     continue
@@ -471,13 +485,20 @@ class ClaudeCodeAgent:
                     session.calls.append(Call(name, arguments, result, bool(block.get("is_error"))))
             if kind == "result":
                 final = event
+        for name, arguments in pending.values():  # asked for, but the session ended before any answer
+            session.calls.append(Call(name, arguments, None, True))
         if final is None:
-            raise RuntimeError(f"Claude Code ended without a result: {stderr.strip()[-500:] or stdout[-500:]}")
+            # Without a result event the cost is unknown, so charge the most the trial was allowed.
+            detail = stderr.strip()[-500:] or stdout[-500:]
+            raise AgentFailed(f"Claude Code ended without a result: {detail}", self.budget_usd)
+        spent = float(final.get("total_cost_usd") or 0.0)
+        if unreachable is not None:
+            raise AgentFailed(f"Claude Code could not connect to lashing: {unreachable}", spent)
         usage = {k: v for k, v in (final.get("usage") or {}).items() if isinstance(v, int)}
         return AgentResult(
             final_text=str(final.get("result") or ""),
             turns=int(final.get("num_turns") or 0),
-            cost_usd=float(final.get("total_cost_usd") or 0.0),
+            cost_usd=spent,
             usage=usage,
             stopped=str(final.get("subtype") or "unknown"),
         )

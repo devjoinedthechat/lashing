@@ -10,7 +10,7 @@ The full transcripts are in [2026-09-18-claude-code-opus-5.jsonl](2026-09-18-cla
   - Only lashing's tools were available (`--tools ""` turns the built-in tools off).
   - No session was saved. Each trial was capped at $2.00.
 - **lashing:** served over streamable HTTP on a local port for each trial, against a fresh simulated
-  carrier. The code was at the commit that adds this file.
+  carrier. The code was at `f963245`, the commit that adds this file.
 - **Tasks:** the eight in [evals/tasks.py](../tasks.py), three trials each, with three running at a
   time.
 - **Grading:** from the simulated carrier's state and lashing's ledger. Two checks read the final
