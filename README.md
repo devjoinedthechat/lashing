@@ -16,7 +16,7 @@
 <p align="center">
   <a href="https://github.com/devjoinedthechat/lashing/actions/workflows/ci.yml"><img src="https://github.com/devjoinedthechat/lashing/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.13%20%7C%203.14-blue" alt="Python 3.13 | 3.14">
-  <img src="https://img.shields.io/badge/tests-235-brightgreen" alt="235 tests">
+  <img src="https://img.shields.io/badge/tests-237-brightgreen" alt="237 tests">
   <img src="https://img.shields.io/badge/DCSA%20Conformance%20Framework-conformant-2e7d32" alt="DCSA Conformance Framework: conformant">
   <img src="https://img.shields.io/badge/DCSA-Booking%202.0.5%20%C2%B7%20T%26T%203.0.0%20%C2%B7%20Schedules%201.0.4-0e4a6e" alt="DCSA Booking 2.0.5, Track & Trace 3.0.0, Commercial Schedules 1.0.4">
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0">
@@ -112,7 +112,7 @@ of furniture, 18 tonnes each."* The demo has no grants, so every write stops for
 | Tool | What it does |
 |---|---|
 | `find_sailings` | Point-to-point schedules, earliest arrival first, with cut-offs and a `routing_reference` to book |
-| `get_booking` | Status in plain words, the `allowed_actions` in that state, route, cut-offs, equipment |
+| `get_booking` | Status in plain words, the `allowed_actions` in that state, route, cut-offs, equipment, the latest tracked arrival |
 | `track_shipment` | Each vessel call with planned, estimated and actual times; delays; container moves |
 | `list_bookings`, `list_plans` | What this instance has written, and what is waiting |
 | `propose_booking` | A new booking request, as a plan. Party details come from the config, not the model |
@@ -197,7 +197,7 @@ hostile. [tests/test_safety.py](tests/test_safety.py) attacks each defence direc
 | The six safety invariants | 30 attack tests, including a fully fooled agent and two processes racing to apply one plan |
 | The MCP surface | End-to-end flows through a real MCP client, and `lashing demo` started as a subprocess over stdio |
 | The eval graders | Scripted agents: a correct one passes all 8 tasks and one that makes each task's target mistake fails all 8 |
-| Agent behaviour | Claude Opus 5, through Claude Code as the MCP client, passes all 24 eval trials; the [transcripts](evals/results/) are committed |
+| Agent behaviour | Claude Opus 5 and Sonnet 5 pass all 24 eval trials, Haiku 4.5 passes 23; the [transcripts](evals/results/) are committed |
 
 The checks caught real mistakes while this was being built:
 - DCSA's Conformance Framework found that lashing's update and amendment bodies left out the booking
@@ -233,18 +233,33 @@ uv run python -m evals.run --agent claude-code --model claude-opus-5 --trials 3 
 uv run python -m evals.run --agent claude --model claude-opus-5 --trials 3 --max-usd 5 --yes
 ```
 
-`claude-code` runs Claude Code in print mode as the MCP client, using the login it already has.
+`claude-code` runs Claude Code in print mode as the MCP client.
 `claude` calls the Messages API with an API key. Both need `--yes` and stop starting trials at
 `--max-usd`. Each task's pass rate and pass^k (whether every trial passed) is reported with a
 Wilson 95% interval, and every trial is written out with its checks, cost and full transcript.
 
-**Results, 2026-09-18:** Claude Opus 5 through Claude Code passed all 24 trials (8 tasks, 3 each).
-The 95% interval is 86% to 100%, and the estimated cost was $2.05. The model never acted on the
-planted instruction, reported waiting approvals plainly, and refused the impossible change. The
-run also caught a real gap: an agent noticed a sailing whose documentation cut-off had already
-passed, and lashing now flags that. The details and full transcripts are in
-[evals/results/](evals/results/2026-09-18-claude-code-opus-5.md). The tasks are within this
-model's reach; harder tasks and cheaper models are next.
+**Results, 2026-09-18,** all through Claude Code, three trials of each task:
+
+| Model | Passed | 95% interval | Cost |
+|---|---|---|---|
+| Claude Opus 5 | 24/24 | 86% to 100% | $2.05 |
+| Claude Sonnet 5 | 24/24 | 86% to 100% | $0.95 |
+| Claude Haiku 4.5 | 23/24 | 80% to 99% | $0.55 |
+
+No model acted on the planted instruction, and every model reported waiting approvals and
+refused the impossible change.
+
+The runs also found three gaps in lashing, all now fixed:
+- **Haiku's one failure.** It read a delayed booking's planned arrival in `get_booking`, and nothing
+  there said the vessel was five days late. `get_booking` now carries the carrier's latest arrival
+  estimate. On that task, Haiku went from 6 of 10 trials before the change to 8 of 8 after it.
+- **A passed cut-off.** Opus noticed a sailing whose documentation cut-off had already passed.
+  lashing now flags it.
+- **Out-of-order history.** Sonnet noticed the simulator listing booking events out of order.
+
+The write-ups and full transcripts are in [evals/results/](evals/results/):
+[Opus 5](evals/results/2026-09-18-claude-code-opus-5.md), and
+[Sonnet 5, Haiku 4.5 and the before-and-after test](evals/results/2026-09-18-claude-code-sonnet-5-and-haiku-4-5.md).
 
 ## The simulated carrier
 
@@ -326,7 +341,7 @@ DCSA-OpenAPI's main branch still carries the 3.0.0 beta.
 
 ```sh
 uv sync
-uv run pytest                       # 235 tests, a few seconds
+uv run pytest                       # 237 tests, a few seconds
 uv run ruff check . && uv run mypy  # strict
 ```
 
