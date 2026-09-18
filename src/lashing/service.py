@@ -130,6 +130,17 @@ def _equipment_text(lines: list[dict[str, Any]]) -> str:
     return ", ".join(parts)
 
 
+def _describe(change: FieldChange, updated: dict[str, Any]) -> str:
+    """One field change in words a person approving it can read at a glance."""
+    if change.field == "requestedEquipments":
+        return f"equipment becomes {_equipment_text(updated['requestedEquipments'])}"
+    if change.before is None:
+        return f"set {change.field} to {change.after!r}"
+    if change.after is None:
+        return f"remove {change.field} (was {change.before!r})"
+    return f"change {change.field} from {change.before!r} to {change.after!r}"
+
+
 @dataclass(frozen=True)
 class Outcome:
     status: str  # applied | needs_approval | refused | failed | already_applied | in_progress
@@ -416,9 +427,7 @@ class Lashing:
         changes = tuple(FieldChange(k, shown(k, content), shown(k, updated)) for k in changed)
         verb = "Update the request" if change is Change.UPDATE else "Amend confirmed booking"
         summary = f"{verb} {state.label}: " + "; ".join(
-            f"{c.field} {c.before!r} -> {c.after!r}" if c.field != "requestedEquipments" else
-            f"equipment -> {_equipment_text(updated['requestedEquipments'])}"
-            for c in changes
+            _describe(c, updated) for c in changes
         ) + "."  # fmt: skip
         scope = Scope(
             action=change.value,

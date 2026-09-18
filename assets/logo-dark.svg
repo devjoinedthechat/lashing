@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="120" height="100" role="img" aria-label="lashing">
+  <title>lashing</title>
+  <rect x="10" y="14" width="100" height="64" rx="5" fill="#4f9cc9"/>
+  <g stroke="#79b8dd" stroke-width="3.5" stroke-linecap="round">
+    <line x1="24" y1="23" x2="24" y2="69"/>
+    <line x1="36" y1="23" x2="36" y2="69"/>
+    <line x1="48" y1="23" x2="48" y2="69"/>
+    <line x1="60" y1="23" x2="60" y2="69"/>
+    <line x1="72" y1="23" x2="72" y2="69"/>
+    <line x1="84" y1="23" x2="84" y2="69"/>
+    <line x1="96" y1="23" x2="96" y2="69"/>
+  </g>
+  <g fill="#2d7aab">
+    <rect x="10" y="14" width="10" height="8" rx="2"/>
+    <rect x="100" y="14" width="10" height="8" rx="2"/>
+    <rect x="10" y="70" width="10" height="8" rx="2"/>
+    <rect x="100" y="70" width="10" height="8" rx="2"/>
+  </g>
+  <g stroke="#fbbf24" stroke-width="6.5" stroke-linecap="round">
+    <line x1="17" y1="20" x2="103" y2="89"/>
+    <line x1="103" y1="20" x2="17" y2="89"/>
+  </g>
+  <circle cx="60" cy="54.5" r="7" fill="#fbbf24"/>
+  <circle cx="60" cy="54.5" r="2.8" fill="#1e293b"/>
+  <rect x="4" y="88" width="112" height="7" rx="3.5" fill="#64748b"/>
+</svg>
