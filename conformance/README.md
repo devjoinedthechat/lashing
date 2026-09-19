@@ -22,24 +22,15 @@ as version 2.0.0, with its 2.0.4 schema.
 Booking notifications are optional in the standard. lashing polls with `GET` instead, so the
 framework reports its notification checks as having no traffic, not as failures.
 
-What the framework found, all fixed:
-- **lashing's client** sent update and amendment bodies without `carrierBookingRequestReference`
-  or `carrierBookingReference`, which `UpdateBooking` requires. They are now built by
-  `lashing.dcsa.booking.update_body`, which keeps both.
-- **The simulator** confirmed bookings without a `commoditySubReference` on each commodity.
-- **The simulator** refused an amendment addressed by the request reference. The standard allows
-  either reference for a `PUT`.
-- **The simulator's amended view** of a confirmed booking left out the confirmed equipment,
-  transport plan and cut-off times.
-- **The simulator** made a request cancellation (UseCase 11) wait for the carrier, although the
-  standard has no carrier step for it.
+## Where the standard and the framework disagree
 
-**A discrepancy in the standard itself.** The `CancelBookingRequest` descriptions say an
-amendment or a confirmed booking is cancelled only "in combination with the `bookingReference`
-path-property being the `carrierBookingReference`". The framework's synthetic shipper sends the
-request reference instead when it has received no notification carrying the booking reference.
+The `CancelBookingRequest` descriptions say an amendment or a confirmed booking is cancelled only
+"in combination with the `bookingReference` path-property being the `carrierBookingReference`".
+The framework's synthetic shipper sends the request reference instead when it has received no
+notification carrying the booking reference.
 
-The simulator therefore accepts either reference. lashing's client sends the one the text asks for.
+lashing's client sends the reference the text asks for. The simulator accepts either, so it
+passes the framework's scenarios and stays correct for a shipper that follows the text.
 
 ## Run it
 

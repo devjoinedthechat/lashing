@@ -81,6 +81,7 @@ wrong:
 | There are three cancellation bodies, each valid only in some states, and each needs a particular reference in the path | A `409`, or the wrong thing cancelled | `propose_cancellation` chooses the body and the reference |
 | A new booking has a request reference until the carrier confirms it and assigns a booking reference | Tracking and amendments sent to the wrong reference | Views show both, and every call uses the right one |
 | Cargo gross weight is the total for an equipment line | "18 tonnes each" sent as 18 tonnes for two containers | The tools take weight per container; lashing sends the total |
+| A booking's transport plan keeps the dates as confirmed; delays are reported only through Track & Trace | The agent reads the booking and calls a late shipment on time | `get_booking` also returns `latest_arrival`, the carrier's current estimate, and says the plan's dates are as booked |
 | The carrier writes free text into feedback, event reasons and party names | Text in a response steers the agent | Carrier text is cleaned, capped and fenced under `carrier_says`, and it can never authorize a write |
 
 ## Try it
@@ -111,8 +112,8 @@ of furniture, 18 tonnes each."* The demo has no grants, so every write stops for
 
 | Tool | What it does |
 |---|---|
-| `find_sailings` | Point-to-point schedules, earliest arrival first, with cut-offs and a `routing_reference` to book |
-| `get_booking` | Status in plain words, the `allowed_actions` in that state, route, cut-offs, equipment, the latest tracked arrival |
+| `find_sailings` | Point-to-point schedules, earliest arrival first, with cut-offs (any already passed is flagged) and a `routing_reference` to book |
+| `get_booking` | Status in plain words, the `allowed_actions` in that state, route, cut-offs, equipment, and the carrier's latest arrival estimate |
 | `track_shipment` | Each vessel call with planned, estimated and actual times; delays; container moves |
 | `list_bookings`, `list_plans` | What this instance has written, and what is waiting |
 | `propose_booking` | A new booking request, as a plan. Party details come from the config, not the model |
@@ -199,16 +200,6 @@ hostile. [tests/test_safety.py](tests/test_safety.py) attacks each defence direc
 | The eval graders | Scripted agents: a correct one passes all 8 tasks and one that makes each task's target mistake fails all 8 |
 | Agent behaviour | Claude Opus 5 and Sonnet 5 pass all 24 eval trials, Haiku 4.5 passes 23; the [transcripts](evals/results/) are committed |
 
-The checks caught real mistakes while this was being built:
-- DCSA's Conformance Framework found that lashing's update and amendment bodies left out the booking
-  references `UpdateBooking` requires, and five gaps in the simulator. [conformance/](conformance/)
-  lists them and one discrepancy in the standard itself.
-- The schema check refused the first demo booking lashing built, because its contact details
-  lacked the email or phone DCSA requires.
-- Hypothesis found two lifecycle states in which a cancellation was offered wrongly: one where the
-  standard forbids it, and one where the call could not be addressed.
-- Writing the evals exposed the per-container weight ambiguity described above.
-
 ## Evals
 
 [evals/](evals/) runs an agent through eight ordinary freight-forwarding requests against a fresh
@@ -246,7 +237,7 @@ A trial that cannot be graded, such as one hit by an API error or a timeout, is 
 error rather than a pass or a fail. What it spent still counts against `--max-usd`, and the run
 exits 1.
 
-**Results, 2026-09-18,** all through Claude Code, three trials of each task:
+**Results, 2026-09-18,** through Claude Code at commit `f963245`, three trials of each task:
 
 | Model | Passed | 95% interval | Cost |
 |---|---|---|---|
@@ -257,17 +248,16 @@ exits 1.
 No model acted on the planted instruction, and every model reported waiting approvals and
 refused the impossible change.
 
-The runs also found three gaps in lashing, all now fixed:
-- **Haiku's one failure.** It read a delayed booking's planned arrival in `get_booking`, and nothing
-  there said the vessel was five days late. `get_booking` now carries the carrier's latest arrival
-  estimate. On that task, Haiku went from 6 of 10 trials before the change to 8 of 8 after it.
-- **A passed cut-off.** Opus noticed a sailing whose documentation cut-off had already passed.
-  lashing now flags it.
-- **Out-of-order history.** Sonnet noticed the simulator listing booking events out of order.
+The one failed trial, Haiku 4.5 on `rebook-late-shipment`, is the transport-plan trap in
+[Why this is hard](#why-this-is-hard). At the measured commit, `get_booking` has no
+`latest_arrival`; Haiku read only the booking's planned arrival and called a shipment five days
+late on time. In a paired test on that task, Haiku 4.5 passes 6 of 10 trials without the field and
+8 of 8 with it. The counts alone are suggestive rather than conclusive (one-sided Fisher p ≈ 0.07),
+but the tool calls show the mechanism: every failing trial stopped at `get_booking`.
 
-The write-ups and full transcripts are in [evals/results/](evals/results/):
-[Opus 5](evals/results/2026-09-18-claude-code-opus-5.md), and
-[Sonnet 5, Haiku 4.5 and the before-and-after test](evals/results/2026-09-18-claude-code-sonnet-5-and-haiku-4-5.md).
+Write-ups with the full transcripts:
+[Claude Opus 5](evals/results/2026-09-18-claude-code-opus-5.md), and
+[Claude Sonnet 5 and Haiku 4.5, with the paired test](evals/results/2026-09-18-claude-code-sonnet-5-and-haiku-4-5.md).
 
 ## The simulated carrier
 
@@ -344,6 +334,10 @@ The specs are vendored at the commits listed in
 [src/lashing/dcsa/specs/SOURCES.json](src/lashing/dcsa/specs/SOURCES.json); regenerate them with
 `uv run python scripts/vendor_specs.py`. Track & Trace comes from the Conformance Gateway because
 DCSA-OpenAPI's main branch still carries the 3.0.0 beta.
+
+The Booking text and DCSA's Conformance Framework disagree on which reference cancels a confirmed
+booking. The text asks for the `carrierBookingReference`, and that is what lashing's client sends.
+The simulator accepts either reference. [conformance/](conformance/) has the details.
 
 ## Development
 
